@@ -86,8 +86,8 @@ def train(net, up, down, loss_fun, epoch, train_loader, optimizer, schedule, log
     train_loader_len = len(train_loader)
 
     for batch_idx, (inputs, targets) in enumerate(train_loader):
-        print(batch_idx)
         eps, p, mix, lr = schedule(epoch, batch_idx)
+        print(f"\r step={batch_idx} p={p} eps={eps}", end=" ")
         inputs = inputs.cuda(gpu, non_blocking=True)
         targets = targets.cuda(gpu, non_blocking=True)
         outputs, worst_outputs = net(inputs, targets=targets, eps=eps, up=up, down=down)
@@ -104,7 +104,7 @@ def train(net, up, down, loss_fun, epoch, train_loader, optimizer, schedule, log
         torch.cuda.empty_cache()
 
         batch_time.update(time.time() - start)
-        if ((batch_idx + 1) % print_freq == 0 and logger is not None) or (batch_idx%2==0):
+        if (batch_idx + 1) % print_freq == 0 and logger is not None:
             logger.print('Epoch: [{0}][{1}/{2}]   '
                          'Time {batch_time.val:.3f} ({batch_time.avg:.3f})   '
                          'lr {lr:.4f}   p {p:.2f}   eps {eps:.4f}   mix {mix:.4f}   '
@@ -252,6 +252,7 @@ def get_normdist_models(model):
 
 
 def create_schedule(args, batch_per_epoch, model, optimizer, loss, eps_schedule='linear'):
+    print(f"batch per epoch: {batch_per_epoch}")
     epoch_eps_start, epoch_eps_end, epoch_p_start, epoch_p_end, epoch_tot = args.epochs
     if args.decays is not None:
         decays = [int(epoch) for epoch in args.decays.split(',')]
@@ -419,8 +420,8 @@ def main_worker(gpu, parallel, args, result_dir):
         if parallel:
             torch.distributed.barrier()
 
-    up = torch.FloatTensor((1 - mean) / std).view(-1, 1, 1).cuda(gpu)
-    down = torch.FloatTensor((0 - mean) / std).view(-1, 1, 1).cuda(gpu)
+    up = None #torch.FloatTensor((1 - mean) / std).view(-1, 1, 1).cuda(gpu)
+    down = None #torch.FloatTensor((0 - mean) / std).view(-1, 1, 1).cuda(gpu)
     attacker = AttackPGD(model, args.eps_test, step_size=args.eps_test / 4, num_steps=100, up=up, down=down)
     args.epochs = [int(epoch) for epoch in args.epochs.split(',')]
     schedule = create_schedule(args, len(train_loader), model, optimizer, loss, 'smooth')
@@ -435,6 +436,7 @@ def main_worker(gpu, parallel, args, result_dir):
 
         # if hasattr(model, 'scalar') and hasattr(model.scalar, 'item'):
         #     logger.print('scalar: ', round(model.scalar.item(), 4))
+        print(f"epoch = {epoch}")
         if parallel:
             train_loader.sampler.set_epoch(epoch)
 
@@ -446,7 +448,7 @@ def main_worker(gpu, parallel, args, result_dir):
             writer.add_scalar('curve/train acc', train_acc, epoch)
             writer.add_scalar('curve/train certified acc (fake)', train_cert, epoch)
 
-        if epoch % 5 == 4 or epoch >= args.epochs[-1] - 5:
+        if epoch % 1 == 0 or epoch >= args.epochs[-1] - 5:
             test_acc = test(model, epoch, test_loader, logger, test_logger, gpu, parallel, args.print_freq)
             if logger is not None:
                 logger.print('Calculating metrics for L_infinity dist model on training set')

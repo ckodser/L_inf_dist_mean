@@ -127,7 +127,6 @@ class NormDistPy(torch.autograd.Function):
         else:
             x, weight, output = ctx.saved_tensors
             grad_input = torch.empty_like(x)
-
             grad_weight = torch.empty_like(weight)
             cudaEqualPyFunction.norm_dist_backward(grad_output, x, weight, output, grad_input,
                                                                 grad_weight,
@@ -140,7 +139,7 @@ class NormDistPy(torch.autograd.Function):
 
 def norm_dist(input, weight, p, groups=1, use_custom_cuda_func=False, tag=None):
     if use_custom_cuda_func:
-        assert NotImplemented
+        raise NotImplemented
         need_grad = torch.is_grad_enabled() and (input.requires_grad or weight.requires_grad)
         # y = NormDistF.apply(input, weight, groups, p, need_grad, tag)
     else:
@@ -156,11 +155,11 @@ def norm_dist(input, weight, p, groups=1, use_custom_cuda_func=False, tag=None):
 
 def bound_inf_dist(x_lower, x_upper, weight, groups=1, use_custom_cuda_func=False, tag=None):
     if use_custom_cuda_func:
-        assert NotImplemented
+        raise NotImplemented
         need_grad = torch.is_grad_enabled() and (x_lower.requires_grad or x_upper.requires_grad or weight.requires_grad)
         # y_lower, y_upper = BoundInfDistF.apply(x_lower, x_upper, weight, groups, need_grad, tag)
     else:
-        assert NotImplemented
+        raise NotImplemented
         w = weight.view(groups, -1, weight.size(-1), 1)
         x1 = w - x_lower.view(x_lower.size(0), groups, 1, -1, x_lower.size(2))
         x2 = x_upper.view(x_upper.size(0), groups, 1, -1, x_upper.size(2)) - w

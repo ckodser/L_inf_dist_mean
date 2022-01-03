@@ -9,7 +9,7 @@ import torch
 def inf_dist_forward_nograd(x, weight, output: torch.Tensor, groups):
     with torch.no_grad():
         output.data = x.view(x.size(0), groups, 1, -1, x.size(2)) - weight.view(groups, -1, weight.size(-1), 1)
-        output.data = torch.norm(output.data, dim=3, p="inf", keepdim=True)
+        output.data = torch.norm(output.data, dim=3, p=float('inf'), keepdim=True)
         output.data = output.data.view(output.size(0), -1, output.data.size(-1))
 
 
@@ -17,7 +17,7 @@ def inf_dist_forward(x, weight, output, pos, groups):
     with torch.no_grad():
         raise NotImplemented
         output.data = x.view(x.size(0), groups, 1, -1, x.size(2)) - weight.view(groups, -1, weight.size(-1), 1)
-        output.data = torch.norm(output.data, dim=3, p="inf", keepdim=True)
+        output.data = torch.norm(output.data, dim=3, p=float('inf'), keepdim=True)
         output.data = output.data.view(output.size(0), -1, output.data.size(-1))
 
 
@@ -27,7 +27,6 @@ def norm_dist_forward(x, weight, output, groups, p):
         normalize = torch.norm(output.data, dim=3, p=float('inf'), keepdim=True)
         output.data = torch.norm(output.data / normalize, dim=3, p=p, keepdim=True) * normalize
         output.data = output.data.view(output.size(0), -1, output.data.size(-1))
-        pass
 
 
 #### backward functions
