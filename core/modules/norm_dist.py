@@ -20,6 +20,7 @@ class NormDistBase(nn.Module):
         self.p = p
         self.mean_shift = MeanShift(out_channels=out_features, affine=False) if mean_shift else None
         self.bias = nn.Parameter(torch.zeros(out_features)) if bias else None
+        self.r = nn.Parameter(torch.ones(out_features)*2, requires_grad=True)
         if not hasattr(NormDistBase, 'tag'):
             NormDistBase.tag = 0
         NormDistBase.tag += 1
@@ -28,8 +29,9 @@ class NormDistBase(nn.Module):
     # x, lower and upper should be 3d tensors with shape (B, C, H*W)
     def forward(self, x=None, lower=None, upper=None):
         if x is not None:
-            x = norm_dist(x, self.weight, self.p, self.groups, tag=self.tag)
+            x = norm_dist(x, self.weight, self.r, self.p, self.groups, tag=self.tag)
         if lower is not None and upper is not None:
+            raise NotImplemented
             assert math.isinf(self.p)
             lower, upper = bound_inf_dist(lower, upper, self.weight, self.groups, tag=self.tag)
         if self.mean_shift is not None:

@@ -15,8 +15,8 @@ def inf_dist_forward_nograd(x, weight, output: torch.Tensor, groups):
 
 def inf_dist_forward(x, weight, output, pos, groups):
     with torch.no_grad():
-        raise NotImplemented
         output.data = x.view(x.size(0), groups, 1, -1, x.size(2)) - weight.view(groups, -1, weight.size(-1), 1)
+        output.data = torch.max(output.data, dim=3, keepdim=True)
         output.data = torch.norm(output.data, dim=3, p=float('inf'), keepdim=True)
         output.data = output.data.view(output.size(0), -1, output.data.size(-1))
 
@@ -39,10 +39,12 @@ def inf_dist_backward(grad_output, pos, grad_input, grad_weight, groups):
 def norm_dist_backward(grad_output, x, weight, output, grad_input, grad_weight, groups, p):
     with torch.no_grad():
         # print("BACK S", grad_weight.shape[0] * grad_weight.shape[0] * grad_output.shape[0])
-        o = torch.pow(((x.data.view(x.size(0), groups, 1, -1, x.size(2)) - weight.data.view(groups, -1, weight.size(-1),
+        inside_pow = (((x.data.view(x.size(0), groups, 1, -1, x.size(2)) - weight.data.view(groups, -1, weight.size(-1),
                                                                                             1)) / output.data.view(
-            x.size(0), groups, weight.size(0), 1, -1)).data, p - 1) * grad_output.data.view(grad_output.size(0), 1,
-                                                                                            grad_output.size(1), 1, 1)
+            x.size(0), groups, weight.size(0), 1, -1))).data
+        o = torch.pow(torch.abs(inside_pow), p - 1) * grad_output.data.view(grad_output.size(0), 1, grad_output.size(1),
+                                                                            1, 1) * torch.sign(inside_pow)
+
         grad_weight.data = -torch.sum(o, dim=0).view(weight.shape)
         grad_input.data = torch.sum(o, dim=2).view(grad_input.shape)
 

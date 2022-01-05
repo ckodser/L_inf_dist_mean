@@ -7,6 +7,7 @@ from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
 mean = {
+    # 'MNIST': np.array([0.5]),
     'MNIST': np.array([0.1307]),
     'FashionMNIST': np.array([0.2860]),
     'CIFAR10': np.array([0.4914, 0.4822, 0.4465]),
