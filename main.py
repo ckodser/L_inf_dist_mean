@@ -79,7 +79,8 @@ def eval(model):
         m.train(s)
 
 
-def train(net, up, down, loss_fun, epoch, train_loader, optimizer, schedule, logger, train_logger, gpu, parallel, print_freq):
+def train(net, up, down, loss_fun, epoch, train_loader, optimizer, schedule, logger, train_logger, gpu, parallel,
+          print_freq):
     batch_time, losses, correct_accs, certified_accs = [AverageMeter() for _ in range(4)]
     start = time.time()
     epoch_start_time = start
@@ -87,7 +88,8 @@ def train(net, up, down, loss_fun, epoch, train_loader, optimizer, schedule, log
 
     for batch_idx, (inputs, targets) in enumerate(train_loader):
         eps, p, mix, lr = schedule(epoch, batch_idx)
-        print(f"\r step={batch_idx} p={p} eps={eps}", end=" ")
+        print(f"\r step={batch_idx} p={round(p, 4)} ", end=" ")
+        print(round(torch.max(inputs).item(), 2), round(torch.min(inputs).item(), 2), end=" ")
         inputs = inputs.cuda(gpu, non_blocking=True)
         targets = targets.cuda(gpu, non_blocking=True)
         outputs, worst_outputs = net(inputs, targets=targets, eps=eps, up=up, down=down)
@@ -111,8 +113,8 @@ def train(net, up, down, loss_fun, epoch, train_loader, optimizer, schedule, log
                          'Loss {loss.val:.4f} ({loss.avg:.4f})   '
                          'Acc {acc.val:.4f} ({acc.avg:.4f})   '
                          'Certified (fake) {cert.val:.4f} ({cert.avg:.4f})'.format(
-                         epoch, batch_idx + 1, train_loader_len, batch_time=batch_time,
-                         lr=lr, p=p, eps=eps, mix=mix, loss=losses, acc=correct_accs, cert=certified_accs))
+                epoch, batch_idx + 1, train_loader_len, batch_time=batch_time,
+                lr=lr, p=p, eps=eps, mix=mix, loss=losses, acc=correct_accs, cert=certified_accs))
         start = time.time()
 
     loss, acc, cert = losses.avg, correct_accs.avg, certified_accs.avg
@@ -124,9 +126,10 @@ def train(net, up, down, loss_fun, epoch, train_loader, optimizer, schedule, log
         eps, p, mix, lr = schedule(epoch, 0)
         logger.print('Epoch {0}:  train loss {loss:.4f}   train acc {acc:.4f}   worst {cert:.4f}   '
                      'lr {lr:.4f}   p {p:.2f}   eps {eps:.4f}   mix {mix:.4f}   time {time:.2f}'.format(
-                     epoch, loss=loss, acc=acc, cert=cert, lr=lr, p=p, eps=eps, mix=mix,
-                     time=time.time() - epoch_start_time))
+            epoch, loss=loss, acc=acc, cert=cert, lr=lr, p=p, eps=eps, mix=mix,
+            time=time.time() - epoch_start_time))
     return loss, acc, cert
+
 
 @torch.no_grad()
 def test(net, epoch, test_loader, logger, test_logger, gpu, parallel, print_freq):
@@ -147,7 +150,7 @@ def test(net, epoch, test_loader, logger, test_logger, gpu, parallel, print_freq
                 logger.print('Test: [{0}/{1}]   '
                              'Time {batch_time.val:.3f} ({batch_time.avg:.3f})   '
                              'Acc {acc.val:.4f} ({acc.avg:.4f})'.format(
-                             batch_idx + 1, test_loader_len, batch_time=batch_time, acc=accs))
+                    batch_idx + 1, test_loader_len, batch_time=batch_time, acc=accs))
 
     acc = accs.avg
     if parallel:
@@ -420,8 +423,8 @@ def main_worker(gpu, parallel, args, result_dir):
         if parallel:
             torch.distributed.barrier()
 
-    up = None #torch.FloatTensor((1 - mean) / std).view(-1, 1, 1).cuda(gpu)
-    down = None #torch.FloatTensor((0 - mean) / std).view(-1, 1, 1).cuda(gpu)
+    up = None  # torch.FloatTensor((1 - mean) / std).view(-1, 1, 1).cuda(gpu)
+    down = None  # torch.FloatTensor((0 - mean) / std).view(-1, 1, 1).cuda(gpu)
     attacker = AttackPGD(model, args.eps_test, step_size=args.eps_test / 4, num_steps=100, up=up, down=down)
     args.epochs = [int(epoch) for epoch in args.epochs.split(',')]
     schedule = create_schedule(args, len(train_loader), model, optimizer, loss, 'smooth')
@@ -493,7 +496,9 @@ def main(father_handle, **extra_argv):
     for key, val in extra_argv.items():
         setattr(args, key, val)
     result_dir = create_result_dir(args)
-    result_dir = "result\CIFAR10_MLPModel"
+    result_dir = "result/CIFAR10_2"
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
     if father_handle is not None:
         father_handle.put(result_dir)
     if args.gpu != -1:
@@ -503,6 +508,7 @@ def main(father_handle, **extra_argv):
         args.world_size *= n_procs
         args.rank *= n_procs
         torch.multiprocessing.spawn(main_worker, nprocs=n_procs, args=(True, args, result_dir))
+
 
 if __name__ == '__main__':
     main(None)
