@@ -1,5 +1,6 @@
 import argparse
 import gc
+import random
 import re
 import os
 import time
@@ -7,6 +8,8 @@ import math
 import bisect
 from contextlib import contextmanager
 from collections import OrderedDict
+
+import numpy as np
 
 import core.norm_dist
 from utils import random_seed, create_result_dir, Logger, TableLogger, AverageMeter
@@ -87,6 +90,9 @@ def train(net, up, down, loss_fun, epoch, train_loader, optimizer, schedule, log
     train_loader_len = len(train_loader)
 
     for batch_idx, (inputs, targets) in enumerate(train_loader):
+        if batch_idx % 30 == 0:
+            get_model_detail(net)
+
         eps, p, mix, lr = schedule(epoch, batch_idx)
         print(f"\r step={batch_idx} p={round(p, 4)} ", end=" ")
         print(round(torch.max(inputs).item(), 2), round(torch.min(inputs).item(), 2), end=" ")
@@ -348,6 +354,25 @@ class mixture():
         return res.max(dim=1)[0].mean() + self.lam * cross_entropy(outputs, targets)
 
 
+def get_model_detail(model):
+    for name, p in model.named_parameters():
+        if name.endswith(".r"):
+            print(name, " *** ", end=" ")
+            for q in range(0, 10, 1):
+                print(round(torch.quantile(p, q / 10).item(), 3), end=" ")
+            print()
+
+    for name, p in model.named_parameters():
+        if name.endswith(".imp"):
+            p = torch.nn.Softmax(dim=1)(p)
+            print(name, " *** ", end=" ")
+            for i in range(5):
+                print(round(torch.quantile(p, 0.2 * i).item(), 5), end=" ")
+            for i in range(10):
+                print(round(torch.quantile(p, 0.8 + 0.02 * i).item(), 5), end=" ")
+            print()
+
+
 def main_worker(gpu, parallel, args, result_dir):
     if parallel:
         args.rank = args.rank + gpu
@@ -453,18 +478,21 @@ def main_worker(gpu, parallel, args, result_dir):
 
         if epoch % 1 == 0 or epoch >= args.epochs[-1] - 5:
             test_acc = test(model, epoch, test_loader, logger, test_logger, gpu, parallel, args.print_freq)
-            if logger is not None:
-                logger.print('Calculating metrics for L_infinity dist model on training set')
-            train_inf_acc, train_inf_cert = certified_test(model, args.eps_test, up, down, epoch, train_loader,
-                                                           logger, train_inf_logger, gpu, parallel)
+            if epoch % 8 == 7:
+                if logger is not None:
+                    logger.print('Calculating metrics for L_infinity dist model on training set')
+                train_inf_acc, train_inf_cert = certified_test(model, args.eps_test, up, down, epoch, train_loader,
+                                                               logger, train_inf_logger, gpu, parallel)
+
             if logger is not None:
                 logger.print('Calculating metrics for L_infinity dist model on test set')
             test_inf_acc, test_inf_cert = certified_test(model, args.eps_test, up, down, epoch, test_loader,
                                                          logger, test_inf_logger, gpu, parallel)
             if writer is not None:
                 writer.add_scalar('curve/test acc', test_acc, epoch)
-                writer.add_scalar('curve/train acc (inf model)', train_inf_acc, epoch)
-                writer.add_scalar('curve/train certified acc (inf model)', train_inf_cert, epoch)
+                if epoch % 8 == 7:
+                    writer.add_scalar('curve/train acc (inf model)', train_inf_acc, epoch)
+                    writer.add_scalar('curve/train certified acc (inf model)', train_inf_cert, epoch)
                 writer.add_scalar('curve/test acc (inf model)', test_inf_acc, epoch)
                 writer.add_scalar('curve/test certified acc (inf model)', test_inf_cert, epoch)
         if epoch >= args.epochs[-1] * 0.9 and (epoch % 50 == 49 or epoch >= args.epochs[-1] - 5):
@@ -491,7 +519,19 @@ def main_worker(gpu, parallel, args, result_dir):
         writer.close()
 
 
-def main(father_handle, **extra_argv):
+def main(father_handle, seed, **extra_argv):
+    torch.manual_seed(seed)
+    random.seed(seed + 1)
+    np.random.seed(seed + 2)
+
+    # a = torch.randn((2, 3, 4))
+    # b = torch.randn((2, 3, 4))
+    # a, ind = torch.sort(a)
+    # print("SORTED A",a)
+    # c=torch.gather(input=b, index=ind, dim=-1)
+    # print("SORTED B",c)
+    #
+    # return
     args = parser.parse_args()
     for key, val in extra_argv.items():
         setattr(args, key, val)
@@ -511,4 +551,4 @@ def main(father_handle, **extra_argv):
 
 
 if __name__ == '__main__':
-    main(None)
+    main(None, 2)

@@ -15,12 +15,14 @@ class NormDistBase(nn.Module):
         super(NormDistBase, self).__init__()
         assert (in_features % groups == 0)
         assert (out_features % groups == 0)
-        self.weight = nn.Parameter(torch.randn(out_features, in_features // groups) * std)
+        self.weight = nn.Parameter(torch.randn(out_features, in_features // groups) * std, requires_grad=True)
         self.groups = groups
         self.p = p
+        self.imp = nn.Parameter(torch.randn(out_features, in_features // groups) * std * 0.01, requires_grad=False)
         self.mean_shift = MeanShift(out_channels=out_features, affine=False) if mean_shift else None
         self.bias = nn.Parameter(torch.zeros(out_features)) if bias else None
-        self.r = nn.Parameter(torch.ones(out_features)*2, requires_grad=True)
+        self.r = nn.Parameter(torch.ones(out_features) * 3, requires_grad=False)
+        self.softMax = torch.nn.Softmax(dim=1)
         if not hasattr(NormDistBase, 'tag'):
             NormDistBase.tag = 0
         NormDistBase.tag += 1
@@ -29,7 +31,7 @@ class NormDistBase(nn.Module):
     # x, lower and upper should be 3d tensors with shape (B, C, H*W)
     def forward(self, x=None, lower=None, upper=None):
         if x is not None:
-            x = norm_dist(x, self.weight, self.r, self.p, self.groups, tag=self.tag)
+            x = norm_dist(x, self.weight, self.r, self.p, self.softMax(self.imp), self.groups, tag=self.tag)
         if lower is not None and upper is not None:
             raise NotImplemented
             assert math.isinf(self.p)
@@ -110,4 +112,3 @@ class NormDistConv(NormDistBase):
         if self.bias is None:
             s += ', bias=False'
         return s.format(**self.__dict__)
-

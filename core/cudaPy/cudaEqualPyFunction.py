@@ -7,33 +7,30 @@ import torch
 #### forward functions
 
 def inf_dist_forward_nograd(x, weight, output: torch.Tensor, groups):
-    with torch.no_grad():
-        output.data = x.view(x.size(0), groups, 1, -1, x.size(2)) - weight.view(groups, -1, weight.size(-1), 1)
-        output.data = torch.norm(output.data, dim=3, p=float('inf'), keepdim=True)
-        output.data = output.data.view(output.size(0), -1, output.data.size(-1))
+    output.data = x.view(x.size(0), groups, 1, -1, x.size(2)) - weight.view(groups, -1, weight.size(-1), 1)
+    output.data = torch.max(torch.abs(output), dim=3, keepdim=True).values
+    output.data = output.data.view(output.size(0), -1, output.data.size(-1))
 
 
 def inf_dist_forward(x, weight, output, pos, groups):
-    with torch.no_grad():
-        output.data = x.view(x.size(0), groups, 1, -1, x.size(2)) - weight.view(groups, -1, weight.size(-1), 1)
-        output.data = torch.max(output.data, dim=3, keepdim=True)
-        output.data = torch.norm(output.data, dim=3, p=float('inf'), keepdim=True)
-        output.data = output.data.view(output.size(0), -1, output.data.size(-1))
+    output.data = x.view(x.size(0), groups, 1, -1, x.size(2)) - weight.view(groups, -1, weight.size(-1), 1)
+    output.data = torch.max(output.data, dim=3, keepdim=True).values
+    output.data = output.data.view(output.size(0), -1, output.data.size(-1))
 
 
 def norm_dist_forward(x, weight, output, groups, p):
-    with torch.no_grad():
-        output.data = x.view(x.size(0), groups, 1, -1, x.size(2)) - weight.view(groups, -1, weight.size(-1), 1)
-        normalize = torch.norm(output.data, dim=3, p=float('inf'), keepdim=True)
-        output.data = torch.norm(output.data / normalize, dim=3, p=p, keepdim=True) * normalize
-        output.data = output.data.view(output.size(0), -1, output.data.size(-1))
+    output.data = x.view(x.size(0), groups, 1, -1, x.size(2)) - weight.view(groups, -1, weight.size(-1), 1)
+    normalize = torch.norm(output.data, dim=3, p=float('inf'), keepdim=True)
+    output.data = torch.norm(output.data / normalize, dim=3, p=p, keepdim=True) * normalize
+    output.data = output.data.view(output.size(0), -1, output.data.size(-1))
 
 
 #### backward functions
-
 def inf_dist_backward(grad_output, pos, grad_input, grad_weight, groups):
-    with torch.no_grad():
-        raise NotImplemented
+    output.data = x.view(x.size(0), groups, 1, -1, x.size(2)) - weight.view(groups, -1, weight.size(-1), 1)
+    output.data = torch.max(output.data, dim=3, keepdim=True).values
+    output.data = output.data.view(output.size(0), -1, output.data.size(-1))
+
 
 
 def norm_dist_backward(grad_output, x, weight, output, grad_input, grad_weight, groups, p):

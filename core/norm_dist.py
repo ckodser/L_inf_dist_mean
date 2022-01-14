@@ -1,3 +1,5 @@
+import random
+
 import torch
 import math
 import core.cudaPy.cudaEqualPyFunction
@@ -137,46 +139,47 @@ class NormDistPy(torch.autograd.Function):
         return grad_input, grad_weight, None, None, None, None, None
 
 
-def norm_dist(input, weight, r, p, groups=1, use_custom_cuda_func=False, tag=None):
+def norm_dist(input, weight, r, p, length, groups=1, use_custom_cuda_func=False, tag=None):
+    return rThDist(input, weight, r, p, length, groups, use_custom_cuda_func, tag)
     if use_custom_cuda_func:
         raise NotImplemented
-        need_grad = torch.is_grad_enabled() and (input.requires_grad or weight.requires_grad)
-        # y = NormDistF.apply(input, weight, groups, p, need_grad, tag)
     else:
-        x = input
-        r = torch.sigmoid(r)*(weight.shape[1] - 1)
-        # r = torch.ones_like(r) * (weight.shape[1] - 1) # 200 -> 60%
-        # r = torch.zeros_like(r)  # 1.0334   1.0334   0.9826   0.9302   0.9045
-        # r = torch.ones_like(r) * (weight.shape[1] - 1) / 2  # 1.03 1.01 0.99 0.95 0.93 0.925
-        if p != float('inf'):
-            a = p / 50
-            norm = -torch.abs(
-                torch.arange(0, weight.shape[1], device="cuda").view(1, -1).repeat(weight.shape[0], 1) - r.view(-1,
-                                                                                                                1)) * a
-            norm -= torch.max(norm, dim=1).values.view(-1, 1)
-            norm = torch.exp(norm)
-            norm = norm / torch.sum(norm, dim=1).view(-1, 1)
+        y = input.view(input.size(0), groups, 1, -1, input.size(2)) - weight.view(groups, -1, weight.size(-1), 1)
+        with torch.no_grad():
+            normalize = torch.norm(y, dim=3, p=float('inf'), keepdim=True)
+        y = torch.norm(y / normalize, dim=3, p=p, keepdim=True) * normalize
+        y = y.view(y.size(0), -1, y.size(-1))
+    return y
 
-        else:
-            norm = -torch.abs(
-                torch.arange(0, weight.shape[1], device="cuda").view(1, -1).repeat(weight.shape[0], 1) - r.view(-1, 1))
-            y = torch.argmax(norm, dim=1)
-            norm = torch.zeros_like(norm)
-            norm = torch.index_put(norm, (torch.arange(0, weight.shape[0], device="cuda"), y), torch.ones(weight.shape[0],device="cuda"))
+
+def rThDist(x, weight, r, p, length, groups=1, use_custom_cuda_func=False, tag=None):
+    if use_custom_cuda_func:
+        raise NotImplemented
+    else:
+        r = torch.sigmoid(r)
+        # r = torch.ones_like(r)  # 200 -> 60%
+        # r = torch.zeros_like(r)  # 1.0334   1.0334   0.9826   0.9302   0.9045
+        # r = torch.ones_like(r) / 2  # 1.03 1.01 0.99 0.95 0.93 0.925
 
         output = (x.view(x.size(0), groups, 1, -1, x.size(2)) - weight.view(groups, -1, weight.size(-1), 1))
-        output, _ = torch.sort(output, dim=3)
-        output = output * norm.view(1, 1, norm.shape[0], norm.shape[1], 1)
-        output = torch.sum(output, dim=3)
+        output, ind = torch.sort(output, dim=3)
+        length = length.view(1, 1, length.shape[0], length.shape[1], 1).repeat(output.shape[0], 1, 1, 1, 1)
+        sorted_length = torch.gather(input=length, index=ind, dim=3)
+        end_point = torch.cumsum(sorted_length, dim=3)
+
+        if p != float('inf'):
+            a = p / 50
+            sum = (torch.exp(r * a) + torch.exp((1 - r) * a) - 2) / a
+            output = output * sorted_length * torch.exp(-torch.abs(end_point - r.view(1, 1, -1, 1, 1)) * a)
+            output = torch.sum(output, dim=3) / sum.view(1, 1, -1, 1)
+        else:
+            select = torch.min(torch.abs(end_point - r.view(1, 1, -1, 1, 1)), dim=3, keepdim=True).values
+            norm = (torch.abs(end_point - r.view(1, 1, -1, 1, 1)) == select)
+            output = output * sorted_length * norm
+            output = torch.sum(output, dim=3)
 
         output = output.view(output.size(0), -1, output.size(-1))
         y = torch.abs(output)
-        # y = NormDistPy.apply(input, weight, groups, p, need_grad, tag)
-        # y = input.view(input.size(0), groups, 1, -1, input.size(2)) - weight.view(groups, -1, weight.size(-1), 1)
-        # with torch.no_grad():
-        #     normalize = torch.norm(y, dim=3, p=float('inf'), keepdim=True)
-        # y = torch.norm(y / normalize, dim=3, p=p, keepdim=True) * normalize
-        # y = y.view(y.size(0), -1, y.size(-1))
     return y
 
 
