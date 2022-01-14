@@ -18,10 +18,10 @@ class NormDistBase(nn.Module):
         self.weight = nn.Parameter(torch.randn(out_features, in_features // groups) * std, requires_grad=True)
         self.groups = groups
         self.p = p
-        self.imp = nn.Parameter(torch.randn(out_features, in_features // groups) * std * 0.01, requires_grad=False)
+        self.imp = nn.Parameter(torch.randn(out_features, in_features // groups) * std * 0.01, requires_grad=True)
         self.mean_shift = MeanShift(out_channels=out_features, affine=False) if mean_shift else None
         self.bias = nn.Parameter(torch.zeros(out_features)) if bias else None
-        self.r = nn.Parameter(torch.ones(out_features) * 3, requires_grad=False)
+        self.r = nn.Parameter(torch.ones(out_features) * 3, requires_grad=True)
         self.softMax = torch.nn.Softmax(dim=1)
         if not hasattr(NormDistBase, 'tag'):
             NormDistBase.tag = 0

@@ -158,6 +158,7 @@ def rThDist(x, weight, r, p, length, groups=1, use_custom_cuda_func=False, tag=N
     else:
         r = torch.sigmoid(r)
         # r = torch.ones_like(r)  # 200 -> 60%
+        # length=torch.ones_like(length)/x.size(1)
         # r = torch.zeros_like(r)  # 1.0334   1.0334   0.9826   0.9302   0.9045
         # r = torch.ones_like(r) / 2  # 1.03 1.01 0.99 0.95 0.93 0.925
 
@@ -168,10 +169,10 @@ def rThDist(x, weight, r, p, length, groups=1, use_custom_cuda_func=False, tag=N
         end_point = torch.cumsum(sorted_length, dim=3)
 
         if p != float('inf'):
-            a = p / 50
-            sum = (torch.exp(r * a) + torch.exp((1 - r) * a) - 2) / a
-            output = output * sorted_length * torch.exp(-torch.abs(end_point - r.view(1, 1, -1, 1, 1)) * a)
-            output = torch.sum(output, dim=3) / sum.view(1, 1, -1, 1)
+            a = p / 50 * 512
+            norm = sorted_length * torch.exp(-torch.abs(end_point - r.view(1, 1, -1, 1, 1)) * a)
+            sum = torch.sum(norm, dim=3, keepdim=True)
+            output = torch.sum(output * norm / sum, dim=3)
         else:
             select = torch.min(torch.abs(end_point - r.view(1, 1, -1, 1, 1)), dim=3, keepdim=True).values
             norm = (torch.abs(end_point - r.view(1, 1, -1, 1, 1)) == select)

@@ -90,7 +90,7 @@ def train(net, up, down, loss_fun, epoch, train_loader, optimizer, schedule, log
     train_loader_len = len(train_loader)
 
     for batch_idx, (inputs, targets) in enumerate(train_loader):
-        if batch_idx % 30 == 0:
+        if batch_idx % 100 == 0:
             get_model_detail(net)
 
         eps, p, mix, lr = schedule(epoch, batch_idx)
