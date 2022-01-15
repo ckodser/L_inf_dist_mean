@@ -11,18 +11,23 @@ def apply_if_not_none(paras, func):
 
 
 class NormDistBase(nn.Module):
-    def __init__(self, in_features, out_features, p=float('inf'), groups=1, bias=True, std=1.0, mean_shift=True):
+    def __init__(self, in_features, out_features, model_dict, p=float('inf'), groups=1, bias=True, std=1.0,
+                 mean_shift=True):
         super(NormDistBase, self).__init__()
         assert (in_features % groups == 0)
         assert (out_features % groups == 0)
         self.weight = nn.Parameter(torch.randn(out_features, in_features // groups) * std, requires_grad=True)
         self.groups = groups
         self.p = p
-        self.imp = nn.Parameter(torch.randn(out_features, in_features // groups) * std * 0.01, requires_grad=True)
+        self.softMax = torch.nn.Softmax(dim=1)
+
+        self.r = nn.Parameter(torch.ones(out_features) * model_dict['initial r'],
+                              requires_grad=model_dict['learnable r'])
+        self.imp = nn.Parameter(torch.randn(out_features, in_features // groups) * std * 0.01, requires_grad=model_dict['learnable length'])
+
         self.mean_shift = MeanShift(out_channels=out_features, affine=False) if mean_shift else None
         self.bias = nn.Parameter(torch.zeros(out_features)) if bias else None
-        self.r = nn.Parameter(torch.ones(out_features) * 3, requires_grad=True)
-        self.softMax = torch.nn.Softmax(dim=1)
+
         if not hasattr(NormDistBase, 'tag'):
             NormDistBase.tag = 0
         NormDistBase.tag += 1
@@ -44,8 +49,9 @@ class NormDistBase(nn.Module):
 
 
 class NormDist(NormDistBase):
-    def __init__(self, in_features, out_features, groups=1, bias=True, identity_val=None, **kwargs):
-        super(NormDist, self).__init__(in_features, out_features, groups=groups, bias=bias, **kwargs)
+    def __init__(self, in_features, out_features, model_dict, groups=1, bias=True, identity_val=None,
+                 **kwargs):
+        super(NormDist, self).__init__(in_features, out_features, model_dict, groups=groups, bias=bias, **kwargs)
         self.in_features = in_features
         self.out_features = out_features
         if identity_val is not None and in_features <= out_features:

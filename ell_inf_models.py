@@ -14,16 +14,16 @@ def check_inf_and_eval(model):
 
 
 class MLPModel(nn.Module):
-    def __init__(self, depth, width, input_dim, num_classes=10,
+    def __init__(self, depth, width, input_dim, model_dict, num_classes=10,
                  std=1.0, identity_val=None, scalar=False):
         super(MLPModel, self).__init__()
         dist_kwargs = {'std': std, 'identity_val': identity_val}
         pixels = input_dim[0] * input_dim[1] * input_dim[2]
         fc_dist = []
-        fc_dist.append(NormDist(pixels, width, bias=False, mean_shift=True, **dist_kwargs))
+        fc_dist.append(NormDist(pixels, width, model_dict=model_dict,bias=False, mean_shift=True, **dist_kwargs))
         for i in range(depth - 2):
-            fc_dist.append(NormDist(width, width, bias=False, mean_shift=True, **dist_kwargs))
-        fc_dist.append(NormDist(width, num_classes, bias=True, mean_shift=False, **dist_kwargs))
+            fc_dist.append(NormDist(width, width, model_dict=model_dict, bias=False, mean_shift=True, **dist_kwargs))
+        fc_dist.append(NormDist(width, num_classes, model_dict=model_dict, bias=True, mean_shift=False, **dist_kwargs))
         self.fc_dist = BoundSequential(*fc_dist)
         self.scalar = nn.Parameter(torch.ones(1)) if scalar else 1
 
@@ -47,15 +47,15 @@ class MLPModel(nn.Module):
 
 
 class HybridModel(nn.Module):
-    def __init__(self, depth, width, input_dim, hidden=512, num_classes=10, std=1.0, identity_val=None):
+    def __init__(self, depth, width, input_dim, model_dict, hidden=512, num_classes=10, std=1.0, identity_val=None):
         super(HybridModel, self).__init__()
         dist_kwargs = {'std': std, 'identity_val': identity_val}
         pixels = input_dim[0] * input_dim[1] * input_dim[2]
         fc_dist = []
         fc_linear = []
-        fc_dist.append(NormDist(pixels, width, bias=False, mean_shift=True, **dist_kwargs))
+        fc_dist.append(NormDist(pixels, width, model_dict=model_dict, bias=False, mean_shift=True, **dist_kwargs))
         for i in range(depth - 3):
-            fc_dist.append(NormDist(width, width, bias=False, mean_shift=True, **dist_kwargs))
+            fc_dist.append(NormDist(width, width, model_dict=model_dict, bias=False, mean_shift=True, **dist_kwargs))
         fc_linear.append(BoundLinear(width, hidden, bias=True))
         fc_linear.append(BoundTanh())
         self.fc_dist = BoundSequential(*fc_dist)

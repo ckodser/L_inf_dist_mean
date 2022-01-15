@@ -24,6 +24,9 @@ import torch
 
 parser = argparse.ArgumentParser(description='L-infinity Dist Net')
 
+parser.add_argument("--manual-result-dir", default="result/CIFAR10_2", type=str)
+
+
 parser.add_argument('--dataset', default='CIFAR10', type=str)
 parser.add_argument('--model', default='MLPModel(depth=6,width=5120,identity_val=10.0, scalar=True)', type=str)
 parser.add_argument('--loss', default='mixture', type=str)
@@ -59,7 +62,6 @@ parser.add_argument('--result-dir', default='result', type=str)
 parser.add_argument('--filter-name', default='', type=str)
 parser.add_argument('--seed', default=2021, type=int)
 parser.add_argument('--visualize', action='store_true')
-
 
 def cal_acc(outputs, targets):
     predicted = torch.max(outputs.data, 1)[1]
@@ -374,6 +376,14 @@ def get_model_detail(model):
 
 
 def main_worker(gpu, parallel, args, result_dir):
+    ###################################################
+    ##############################################################################
+    model_dict={'learnable length': False, 'learnable r': True, 'initial r': 3}
+    ##############################################################################
+    ####################################################
+
+
+
     if parallel:
         args.rank = args.rank + gpu
         torch.distributed.init_process_group(backend='nccl', init_method=args.dist_url,
@@ -390,7 +400,8 @@ def main_worker(gpu, parallel, args, result_dir):
     num_classes = len(train_loader.dataset.classes)
 
     model_name, params = parse_function_call(args.model)
-    model = globals()[model_name](input_dim=input_dim[args.dataset], num_classes=num_classes, **params)
+
+    model = globals()[model_name](model_dict=model_dict, input_dim=input_dim[args.dataset], num_classes=num_classes, **params)
     model = model.cuda(gpu)
     if parallel:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu])
@@ -519,24 +530,21 @@ def main_worker(gpu, parallel, args, result_dir):
         writer.close()
 
 
-def main(father_handle, seed, **extra_argv):
-    torch.manual_seed(seed)
-    random.seed(seed + 1)
-    np.random.seed(seed + 2)
-
-    # a = torch.randn((2, 3, 4))
-    # b = torch.randn((2, 3, 4))
-    # a, ind = torch.sort(a)
-    # print("SORTED A",a)
-    # c=torch.gather(input=b, index=ind, dim=-1)
-    # print("SORTED B",c)
-    #
-    # return
+def main(father_handle, **extra_argv):
     args = parser.parse_args()
+
+    torch.manual_seed(args.seed)
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+
     for key, val in extra_argv.items():
         setattr(args, key, val)
-    result_dir = create_result_dir(args)
-    result_dir = "result/CIFAR10_2"
+
+    if args.manual_result_dir==None:
+        result_dir = create_result_dir(args)
+    else:
+        result_dir = args.manual_result_dir
+
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
     if father_handle is not None:
@@ -551,4 +559,4 @@ def main(father_handle, seed, **extra_argv):
 
 
 if __name__ == '__main__':
-    main(None, 2)
+    main(None)
