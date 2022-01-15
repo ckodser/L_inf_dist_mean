@@ -465,27 +465,15 @@ def main_worker(gpu, model_dict, parallel, args, result_dir):
     args.epochs = [int(epoch) for epoch in args.epochs.split(',')]
     schedule = create_schedule(args, len(train_loader), model, optimizer, loss, 'smooth')
 
-    # if args.visualize and output_flag:
-    #     from torch.utils.tensorboard import SummaryWriter
-    #     writer = SummaryWriter(result_dir)
-    # else:
-    #     writer = None
 
     for epoch in range(args.start_epoch, args.epochs[-1]):
 
-        # if hasattr(model, 'scalar') and hasattr(model.scalar, 'item'):
-        #     logger.print('scalar: ', round(model.scalar.item(), 4))
         print(f"epoch = {epoch}")
         if parallel:
             train_loader.sampler.set_epoch(epoch)
 
         train_loss, train_acc, train_cert = train(model, up, down, loss, epoch, train_loader, optimizer, schedule,
                                                   logger, train_logger, gpu, parallel, args.print_freq)
-        # if writer is not None:
-        #     writer.add_scalar('p', get_normdist_models(model)[0].p, epoch)
-        #     writer.add_scalar('train loss', train_loss, epoch)
-        #     writer.add_scalar('train acc', train_acc, epoch)
-        #     writer.add_scalar('train certified acc (fake)', train_cert, epoch)
 
         if epoch % 1 == 0 or epoch >= args.epochs[-1] - 5:
             test_acc = test(model, epoch, test_loader, logger, test_logger, gpu, parallel, args.print_freq)
