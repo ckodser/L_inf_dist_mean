@@ -368,24 +368,17 @@ class mixture():
 def get_model_detail(model, step):
     for name, p in model.named_parameters():
         if name.endswith(".r"):
-            print(name, " *** ", end=" ")
             for q in range(0, 10, 1):
                 writer.add_scalar(f"detail/{name}/{q*10}/distribution", torch.quantile(p, q / 10).item(), step)
-                print(round(torch.quantile(p, q / 10).item(), 3), end=" ")
-            print()
 
 
     for name, p in model.named_parameters():
         if name.endswith(".imp"):
             p = torch.nn.Softmax(dim=1)(p)
-            print(name, " *** ", end=" ")
             for i in range(5):
                 writer.add_scalar(f"detail/{name}/{20* i}/distribution", torch.quantile(p, 0.2 * i).item(), step)
-                print(round(torch.quantile(p, 0.2 * i).item(), 5), end=" ")
             for i in range(10):
                 writer.add_scalar(f"detail/{name}/{80+ 2 * i}/distribution", torch.quantile(p, 0.8 + 0.02 * i).item(), step)
-                print(round(torch.quantile(p, 0.8 + 0.02 * i).item(), 5), end=" ")
-            print()
 
 
 
