@@ -61,11 +61,12 @@ def create_result_dir(args):
     result_dir = get_result_dir(args)
     id = 0
     while True:
-        result_dir_id = result_dir + '_%d'%id
+        result_dir_id = result_dir + '_%d' % id
         if not os.path.exists(result_dir_id): break
         id += 1
     os.makedirs(result_dir_id)
     return result_dir_id
+
 
 class Logger(object):
     def __init__(self, dir):
@@ -99,6 +100,9 @@ class TableLogger(object):
         self.fp.flush()
 
 
+from queue import Queue
+
+
 class AverageMeter(object):
     def __init__(self):
         self.reset()
@@ -108,10 +112,18 @@ class AverageMeter(object):
         self.avg = 0
         self.sum = 0
         self.count = 0
+        self.queue = Queue(maxsize=400)
+        self.queuesum = 0
+        self.queueavg = 0
 
     def update(self, val, n=1):
+        if self.queue.full():
+            self.queuesum -= self.queue.get()
+        self.queue.put(val)
+        self.queuesum += val
+        self.queueavg=self.queuesum/self.queue.qsize()
+
         self.val = val
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
-

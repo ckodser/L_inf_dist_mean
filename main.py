@@ -19,13 +19,14 @@ from core.modules import NormDistBase
 from torch.nn.functional import cross_entropy
 from torch.optim import Adam
 
+from torch.utils.tensorboard import SummaryWriter
+
 from torch.autograd import gradcheck
 import torch
 
 parser = argparse.ArgumentParser(description='L-infinity Dist Net')
 
 parser.add_argument("--manual-result-dir", default="result/CIFAR10_2", type=str)
-
 
 parser.add_argument('--dataset', default='CIFAR10', type=str)
 parser.add_argument('--model', default='MLPModel(depth=6,width=5120,identity_val=10.0, scalar=True)', type=str)
@@ -63,6 +64,7 @@ parser.add_argument('--filter-name', default='', type=str)
 parser.add_argument('--seed', default=2021, type=int)
 parser.add_argument('--visualize', action='store_true')
 
+
 def cal_acc(outputs, targets):
     predicted = torch.max(outputs.data, 1)[1]
     return (predicted == targets).float().mean().item()
@@ -92,10 +94,12 @@ def train(net, up, down, loss_fun, epoch, train_loader, optimizer, schedule, log
     train_loader_len = len(train_loader)
 
     for batch_idx, (inputs, targets) in enumerate(train_loader):
+        step = batch_idx + train_loader_len * epoch
         if batch_idx % 100 == 0:
-            get_model_detail(net)
+            get_model_detail(net, step)
 
         eps, p, mix, lr = schedule(epoch, batch_idx)
+        writer.add_scalar("p", p, step)
         print(f"\r step={batch_idx} p={round(p, 4)} ", end=" ")
         print(round(torch.max(inputs).item(), 2), round(torch.min(inputs).item(), 2), end=" ")
         inputs = inputs.cuda(gpu, non_blocking=True)
@@ -115,6 +119,10 @@ def train(net, up, down, loss_fun, epoch, train_loader, optimizer, schedule, log
 
         batch_time.update(time.time() - start)
         if (batch_idx + 1) % print_freq == 0 and logger is not None:
+            writer.add_scalar("training loss", losses.queueavg, step)
+            writer.add_scalar("train accuracy", correct_accs.queueavg, step)
+            writer.add_scalar("certified accuracy", certified_accs.queueavg, step)
+
             logger.print('Epoch: [{0}][{1}/{2}]   '
                          'Time {batch_time.val:.3f} ({batch_time.avg:.3f})   '
                          'lr {lr:.4f}   p {p:.2f}   eps {eps:.4f}   mix {mix:.4f}   '
@@ -125,6 +133,7 @@ def train(net, up, down, loss_fun, epoch, train_loader, optimizer, schedule, log
                 lr=lr, p=p, eps=eps, mix=mix, loss=losses, acc=correct_accs, cert=certified_accs))
         start = time.time()
 
+    step = train_loader_len * (epoch + 1)
     loss, acc, cert = losses.avg, correct_accs.avg, certified_accs.avg
     if parallel:
         loss, acc, cert = parallel_reduce(loss, acc, cert)
@@ -356,34 +365,31 @@ class mixture():
         return res.max(dim=1)[0].mean() + self.lam * cross_entropy(outputs, targets)
 
 
-def get_model_detail(model):
+def get_model_detail(model, step):
     for name, p in model.named_parameters():
         if name.endswith(".r"):
             print(name, " *** ", end=" ")
             for q in range(0, 10, 1):
+                writer.add_scalar(f"detail/{name}/{q*10}/distribution", torch.quantile(p, q / 10).item(), step)
                 print(round(torch.quantile(p, q / 10).item(), 3), end=" ")
             print()
+
 
     for name, p in model.named_parameters():
         if name.endswith(".imp"):
             p = torch.nn.Softmax(dim=1)(p)
             print(name, " *** ", end=" ")
             for i in range(5):
+                writer.add_scalar(f"detail/{name}/{20* i}/distribution", torch.quantile(p, 0.2 * i).item(), step)
                 print(round(torch.quantile(p, 0.2 * i).item(), 5), end=" ")
             for i in range(10):
+                writer.add_scalar(f"detail/{name}/{80+ 2 * i}/distribution", torch.quantile(p, 0.8 + 0.02 * i).item(), step)
                 print(round(torch.quantile(p, 0.8 + 0.02 * i).item(), 5), end=" ")
             print()
 
 
-def main_worker(gpu, parallel, args, result_dir):
-    ###################################################
-    ##############################################################################
-    model_dict={'learnable length': False, 'learnable r': True, 'initial r': 3}
-    ##############################################################################
-    ####################################################
 
-
-
+def main_worker(gpu, model_dict, parallel, args, result_dir):
     if parallel:
         args.rank = args.rank + gpu
         torch.distributed.init_process_group(backend='nccl', init_method=args.dist_url,
@@ -401,7 +407,8 @@ def main_worker(gpu, parallel, args, result_dir):
 
     model_name, params = parse_function_call(args.model)
 
-    model = globals()[model_name](model_dict=model_dict, input_dim=input_dim[args.dataset], num_classes=num_classes, **params)
+    model = globals()[model_name](model_dict=model_dict, input_dim=input_dim[args.dataset], num_classes=num_classes,
+                                  **params)
     model = model.cuda(gpu)
     if parallel:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu])
@@ -465,11 +472,11 @@ def main_worker(gpu, parallel, args, result_dir):
     args.epochs = [int(epoch) for epoch in args.epochs.split(',')]
     schedule = create_schedule(args, len(train_loader), model, optimizer, loss, 'smooth')
 
-    if args.visualize and output_flag:
-        from torch.utils.tensorboard import SummaryWriter
-        writer = SummaryWriter(result_dir)
-    else:
-        writer = None
+    # if args.visualize and output_flag:
+    #     from torch.utils.tensorboard import SummaryWriter
+    #     writer = SummaryWriter(result_dir)
+    # else:
+    #     writer = None
 
     for epoch in range(args.start_epoch, args.epochs[-1]):
 
@@ -481,11 +488,11 @@ def main_worker(gpu, parallel, args, result_dir):
 
         train_loss, train_acc, train_cert = train(model, up, down, loss, epoch, train_loader, optimizer, schedule,
                                                   logger, train_logger, gpu, parallel, args.print_freq)
-        if writer is not None:
-            writer.add_scalar('curve/p', get_normdist_models(model)[0].p, epoch)
-            writer.add_scalar('curve/train loss', train_loss, epoch)
-            writer.add_scalar('curve/train acc', train_acc, epoch)
-            writer.add_scalar('curve/train certified acc (fake)', train_cert, epoch)
+        # if writer is not None:
+        #     writer.add_scalar('p', get_normdist_models(model)[0].p, epoch)
+        #     writer.add_scalar('train loss', train_loss, epoch)
+        #     writer.add_scalar('train acc', train_acc, epoch)
+        #     writer.add_scalar('train certified acc (fake)', train_cert, epoch)
 
         if epoch % 1 == 0 or epoch >= args.epochs[-1] - 5:
             test_acc = test(model, epoch, test_loader, logger, test_logger, gpu, parallel, args.print_freq)
@@ -500,18 +507,18 @@ def main_worker(gpu, parallel, args, result_dir):
             test_inf_acc, test_inf_cert = certified_test(model, args.eps_test, up, down, epoch, test_loader,
                                                          logger, test_inf_logger, gpu, parallel)
             if writer is not None:
-                writer.add_scalar('curve/test acc', test_acc, epoch)
+                writer.add_scalar('test acc', test_acc, epoch)
                 if epoch % 8 == 7:
-                    writer.add_scalar('curve/train acc (inf model)', train_inf_acc, epoch)
-                    writer.add_scalar('curve/train certified acc (inf model)', train_inf_cert, epoch)
-                writer.add_scalar('curve/test acc (inf model)', test_inf_acc, epoch)
-                writer.add_scalar('curve/test certified acc (inf model)', test_inf_cert, epoch)
+                    writer.add_scalar('train acc (inf model)', train_inf_acc, epoch)
+                    writer.add_scalar('train certified acc (inf model)', train_inf_cert, epoch)
+                writer.add_scalar('test acc (inf model)', test_inf_acc, epoch)
+                writer.add_scalar('test certified acc (inf model)', test_inf_cert, epoch)
         if epoch >= args.epochs[-1] * 0.9 and (epoch % 50 == 49 or epoch >= args.epochs[-1] - 5):
             if logger is not None:
                 logger.print('Generate adversarial examples on test dataset')
             robust_test_acc = gen_adv_examples(model, attacker, test_loader, gpu, parallel, logger, fast=False)
             if writer is not None:
-                writer.add_scalar('curve/robust test acc', robust_test_acc, epoch)
+                writer.add_scalar('robust test acc(gen adv examples)', robust_test_acc, epoch)
     schedule(args.epochs[-1], 0)
     logger.print('============Training completes===========')
     if logger is not None:
@@ -531,6 +538,13 @@ def main_worker(gpu, parallel, args, result_dir):
 
 
 def main(father_handle, **extra_argv):
+    ###################################################
+    ##############################################################################
+    run_name="exp2"
+    model_dict = {'learnable length': False, 'learnable r': True, 'initial r': 1}
+    ##############################################################################
+    ####################################################
+
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
@@ -540,17 +554,31 @@ def main(father_handle, **extra_argv):
     for key, val in extra_argv.items():
         setattr(args, key, val)
 
-    if args.manual_result_dir==None:
+    if args.manual_result_dir == None:
         result_dir = create_result_dir(args)
     else:
         result_dir = args.manual_result_dir
 
+    result_dir += "lenght_" + str(model_dict['learnable length']) + "_r" + str(model_dict['learnable r']) + "_" + str(
+        model_dict['initial r'])+run_name
+
+    global writer
+    writer = SummaryWriter(log_dir=result_dir, flush_secs=30)
+
+    writer.add_custom_scalars(layout={"imp's":{"layer0":['Multiline', ['detail/fc_dist.0.imp/0/distribution','detail/fc_dist.0.imp/20/distribution','detail/fc_dist.0.imp/40/distribution','detail/fc_dist.0.imp/60/distribution','detail/fc_dist.0.imp/80/distribution','detail/fc_dist.0.imp/82/distribution','detail/fc_dist.0.imp/84/distribution','detail/fc_dist.0.imp/86/distribution','detail/fc_dist.0.imp/88/distribution','detail/fc_dist.0.imp/90/distribution','detail/fc_dist.0.imp/92/distribution','detail/fc_dist.0.imp/94/distribution','detail/fc_dist.0.imp/96/distribution','detail/fc_dist.0.imp/98/distribution' ]],
+                                               "layer1":['Multiline', ['detail/fc_dist.1.imp/0/distribution','detail/fc_dist.1.imp/20/distribution','detail/fc_dist.1.imp/40/distribution','detail/fc_dist.1.imp/60/distribution','detail/fc_dist.1.imp/80/distribution','detail/fc_dist.1.imp/82/distribution','detail/fc_dist.1.imp/84/distribution','detail/fc_dist.1.imp/86/distribution','detail/fc_dist.1.imp/88/distribution','detail/fc_dist.1.imp/90/distribution','detail/fc_dist.1.imp/92/distribution','detail/fc_dist.1.imp/94/distribution','detail/fc_dist.1.imp/96/distribution','detail/fc_dist.1.imp/98/distribution' ]],
+                                               "layer2":['Multiline', ['detail/fc_dist.2.imp/0/distribution','detail/fc_dist.2.imp/20/distribution','detail/fc_dist.2.imp/40/distribution','detail/fc_dist.2.imp/60/distribution','detail/fc_dist.2.imp/80/distribution','detail/fc_dist.2.imp/82/distribution','detail/fc_dist.2.imp/84/distribution','detail/fc_dist.2.imp/86/distribution','detail/fc_dist.2.imp/88/distribution','detail/fc_dist.2.imp/90/distribution','detail/fc_dist.2.imp/92/distribution','detail/fc_dist.2.imp/94/distribution','detail/fc_dist.2.imp/96/distribution','detail/fc_dist.2.imp/98/distribution' ]]},
+                                      "r's":{"layer0":['Multiline', ['detail/fc_dist.0.r/0/distribution','detail/fc_dist.0.r/10/distribution','detail/fc_dist.0.r/20/distribution','detail/fc_dist.0.r/30/distribution','detail/fc_dist.0.r/40/distribution','detail/fc_dist.0.r/50/distribution','detail/fc_dist.0.r/60/distribution','detail/fc_dist.0.r/70/distribution','detail/fc_dist.0.r/80/distribution','detail/fc_dist.0.r/90/distribution']],
+                                             "layer1":['Multiline', ['detail/fc_dist.1.r/0/distribution','detail/fc_dist.1.r/10/distribution','detail/fc_dist.1.r/20/distribution','detail/fc_dist.1.r/30/distribution','detail/fc_dist.1.r/40/distribution','detail/fc_dist.1.r/50/distribution','detail/fc_dist.1.r/60/distribution','detail/fc_dist.1.r/70/distribution','detail/fc_dist.1.r/80/distribution','detail/fc_dist.1.r/90/distribution']],
+                                             "layer2":['Multiline', ['detail/fc_dist.2.r/0/distribution','detail/fc_dist.2.r/10/distribution','detail/fc_dist.2.r/20/distribution','detail/fc_dist.2.r/30/distribution','detail/fc_dist.2.r/40/distribution','detail/fc_dist.2.r/50/distribution','detail/fc_dist.2.r/60/distribution','detail/fc_dist.2.r/70/distribution','detail/fc_dist.2.r/80/distribution','detail/fc_dist.2.r/90/distribution']]}})
+    
+    
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
     if father_handle is not None:
         father_handle.put(result_dir)
     if args.gpu != -1:
-        main_worker(args.gpu, False, args, result_dir)
+        main_worker(args.gpu, model_dict, False, args, result_dir)
     else:
         n_procs = torch.cuda.device_count()
         args.world_size *= n_procs
