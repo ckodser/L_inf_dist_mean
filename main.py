@@ -198,6 +198,7 @@ def gen_adv_examples(net, attacker, test_loader, gpu, parallel, logger, fast=Fal
                     result &= (predicted == targets)
             correct += result.float().sum().item()
             tot_num += inputs.size(0)
+            print(f"\r {batch_idx}/{len(test_loader)}   PGD acc:{round(correct/tot_num, 3)} ")
             if fast and batch_idx * 10 >= size:
                 break
 
@@ -459,8 +460,8 @@ def main_worker(gpu, model_dict, parallel, args, result_dir):
         if parallel:
             torch.distributed.barrier()
 
-    up = None  # torch.FloatTensor((1 - mean) / std).view(-1, 1, 1).cuda(gpu)
-    down = None  # torch.FloatTensor((0 - mean) / std).view(-1, 1, 1).cuda(gpu)
+    up = torch.FloatTensor((1 - mean) / std).view(-1, 1, 1).cuda(gpu)
+    down = torch.FloatTensor((0 - mean) / std).view(-1, 1, 1).cuda(gpu)
     attacker = AttackPGD(model, args.eps_test, step_size=args.eps_test / 4, num_steps=100, up=up, down=down)
     args.epochs = [int(epoch) for epoch in args.epochs.split(',')]
     schedule = create_schedule(args, len(train_loader), model, optimizer, loss, 'smooth')

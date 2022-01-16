@@ -23,6 +23,7 @@ class AttackPGD():
             x = torch.min(torch.max(x, self.down), self.up)
 
         for i in range(self.num_steps):
+            print(f"\r {i}/{self.num_steps}", end=" ")
             x.requires_grad_()
             logits = self.net(x)
             loss = F.cross_entropy(logits, targets, reduction='sum')
