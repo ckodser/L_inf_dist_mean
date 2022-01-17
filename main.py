@@ -180,7 +180,7 @@ def test(net, epoch, test_loader, logger, test_logger, gpu, parallel, print_freq
     return acc
 
 
-def gen_adv_examples(net, attacker, test_loader, gpu, parallel, logger, fast=False):
+def gen_adv_examples(net, attacker, test_loader, gpu, parallel, logger, fast=False, very_fast=True):
     correct = 0
     tot_num = 0
     size = len(test_loader)
@@ -198,7 +198,9 @@ def gen_adv_examples(net, attacker, test_loader, gpu, parallel, logger, fast=Fal
                     result &= (predicted == targets)
             correct += result.float().sum().item()
             tot_num += inputs.size(0)
-            print(f"\r {batch_idx}/{len(test_loader)}   PGD acc:{round(correct/tot_num, 3)} ")
+            print(f"\r {batch_idx}/{len(test_loader)}  PGD acc:{round(correct / tot_num, 3)} ")
+            if very_fast and tot_num > 50:
+                break
             if fast and batch_idx * 10 >= size:
                 break
 
@@ -370,17 +372,16 @@ def get_model_detail(model, step):
     for name, p in model.named_parameters():
         if name.endswith(".r"):
             for q in range(0, 10, 1):
-                writer.add_scalar(f"detail/{name}/{q*10}/distribution", torch.quantile(p, q / 10).item(), step)
-
+                writer.add_scalar(f"detail/{name}/{q * 10}/distribution", torch.quantile(p, q / 10).item(), step)
 
     for name, p in model.named_parameters():
         if name.endswith(".imp"):
             p = torch.nn.Softmax(dim=1)(p)
             for i in range(5):
-                writer.add_scalar(f"detail/{name}/{20* i}/distribution", torch.quantile(p, 0.2 * i).item(), step)
+                writer.add_scalar(f"detail/{name}/{20 * i}/distribution", torch.quantile(p, 0.2 * i).item(), step)
             for i in range(10):
-                writer.add_scalar(f"detail/{name}/{80+ 2 * i}/distribution", torch.quantile(p, 0.8 + 0.02 * i).item(), step)
-
+                writer.add_scalar(f"detail/{name}/{80 + 2 * i}/distribution", torch.quantile(p, 0.8 + 0.02 * i).item(),
+                                  step)
 
 
 def main_worker(gpu, model_dict, parallel, args, result_dir):
@@ -466,7 +467,6 @@ def main_worker(gpu, model_dict, parallel, args, result_dir):
     args.epochs = [int(epoch) for epoch in args.epochs.split(',')]
     schedule = create_schedule(args, len(train_loader), model, optimizer, loss, 'smooth')
 
-
     for epoch in range(args.start_epoch, args.epochs[-1]):
 
         print(f"epoch = {epoch}")
@@ -508,7 +508,7 @@ def main_worker(gpu, model_dict, parallel, args, result_dir):
     gen_adv_examples(model, attacker, test_loader, gpu, parallel, logger, fast=False)
     if logger is not None:
         logger.print('Calculating test acc and certified test acc')
-    certified_test(model, args.eps_test, up, down, args.epochs[-1], test_loader,
+    certified_test(model, args.eps_test, None, None, args.epochs[-1], test_loader,
                    logger, test_inf_logger, gpu, parallel)
     if output_flag:
         torch.save({
@@ -522,7 +522,7 @@ def main_worker(gpu, model_dict, parallel, args, result_dir):
 def main(father_handle, **extra_argv):
     ###################################################
     ##############################################################################
-    run_name="exp2"
+    run_name = "exp2"
     model_dict = {'learnable length': False, 'learnable r': True, 'initial r': 1}
     ##############################################################################
     ####################################################
@@ -542,19 +542,84 @@ def main(father_handle, **extra_argv):
         result_dir = args.manual_result_dir
 
     result_dir += "lenght_" + str(model_dict['learnable length']) + "_r" + str(model_dict['learnable r']) + "_" + str(
-        model_dict['initial r'])+run_name
+        model_dict['initial r']) + run_name
 
     global writer
     writer = SummaryWriter(log_dir=result_dir, flush_secs=30)
 
-    writer.add_custom_scalars(layout={"imp's":{"layer0":['Multiline', ['detail/fc_dist.0.imp/0/distribution','detail/fc_dist.0.imp/20/distribution','detail/fc_dist.0.imp/40/distribution','detail/fc_dist.0.imp/60/distribution','detail/fc_dist.0.imp/80/distribution','detail/fc_dist.0.imp/82/distribution','detail/fc_dist.0.imp/84/distribution','detail/fc_dist.0.imp/86/distribution','detail/fc_dist.0.imp/88/distribution','detail/fc_dist.0.imp/90/distribution','detail/fc_dist.0.imp/92/distribution','detail/fc_dist.0.imp/94/distribution','detail/fc_dist.0.imp/96/distribution','detail/fc_dist.0.imp/98/distribution' ]],
-                                               "layer1":['Multiline', ['detail/fc_dist.1.imp/0/distribution','detail/fc_dist.1.imp/20/distribution','detail/fc_dist.1.imp/40/distribution','detail/fc_dist.1.imp/60/distribution','detail/fc_dist.1.imp/80/distribution','detail/fc_dist.1.imp/82/distribution','detail/fc_dist.1.imp/84/distribution','detail/fc_dist.1.imp/86/distribution','detail/fc_dist.1.imp/88/distribution','detail/fc_dist.1.imp/90/distribution','detail/fc_dist.1.imp/92/distribution','detail/fc_dist.1.imp/94/distribution','detail/fc_dist.1.imp/96/distribution','detail/fc_dist.1.imp/98/distribution' ]],
-                                               "layer2":['Multiline', ['detail/fc_dist.2.imp/0/distribution','detail/fc_dist.2.imp/20/distribution','detail/fc_dist.2.imp/40/distribution','detail/fc_dist.2.imp/60/distribution','detail/fc_dist.2.imp/80/distribution','detail/fc_dist.2.imp/82/distribution','detail/fc_dist.2.imp/84/distribution','detail/fc_dist.2.imp/86/distribution','detail/fc_dist.2.imp/88/distribution','detail/fc_dist.2.imp/90/distribution','detail/fc_dist.2.imp/92/distribution','detail/fc_dist.2.imp/94/distribution','detail/fc_dist.2.imp/96/distribution','detail/fc_dist.2.imp/98/distribution' ]]},
-                                      "r's":{"layer0":['Multiline', ['detail/fc_dist.0.r/0/distribution','detail/fc_dist.0.r/10/distribution','detail/fc_dist.0.r/20/distribution','detail/fc_dist.0.r/30/distribution','detail/fc_dist.0.r/40/distribution','detail/fc_dist.0.r/50/distribution','detail/fc_dist.0.r/60/distribution','detail/fc_dist.0.r/70/distribution','detail/fc_dist.0.r/80/distribution','detail/fc_dist.0.r/90/distribution']],
-                                             "layer1":['Multiline', ['detail/fc_dist.1.r/0/distribution','detail/fc_dist.1.r/10/distribution','detail/fc_dist.1.r/20/distribution','detail/fc_dist.1.r/30/distribution','detail/fc_dist.1.r/40/distribution','detail/fc_dist.1.r/50/distribution','detail/fc_dist.1.r/60/distribution','detail/fc_dist.1.r/70/distribution','detail/fc_dist.1.r/80/distribution','detail/fc_dist.1.r/90/distribution']],
-                                             "layer2":['Multiline', ['detail/fc_dist.2.r/0/distribution','detail/fc_dist.2.r/10/distribution','detail/fc_dist.2.r/20/distribution','detail/fc_dist.2.r/30/distribution','detail/fc_dist.2.r/40/distribution','detail/fc_dist.2.r/50/distribution','detail/fc_dist.2.r/60/distribution','detail/fc_dist.2.r/70/distribution','detail/fc_dist.2.r/80/distribution','detail/fc_dist.2.r/90/distribution']]}})
-    
-    
+    writer.add_custom_scalars(layout={"imp's": {"layer0": ['Multiline', ['detail/fc_dist.0.imp/0/distribution',
+                                                                         'detail/fc_dist.0.imp/20/distribution',
+                                                                         'detail/fc_dist.0.imp/40/distribution',
+                                                                         'detail/fc_dist.0.imp/60/distribution',
+                                                                         'detail/fc_dist.0.imp/80/distribution',
+                                                                         'detail/fc_dist.0.imp/82/distribution',
+                                                                         'detail/fc_dist.0.imp/84/distribution',
+                                                                         'detail/fc_dist.0.imp/86/distribution',
+                                                                         'detail/fc_dist.0.imp/88/distribution',
+                                                                         'detail/fc_dist.0.imp/90/distribution',
+                                                                         'detail/fc_dist.0.imp/92/distribution',
+                                                                         'detail/fc_dist.0.imp/94/distribution',
+                                                                         'detail/fc_dist.0.imp/96/distribution',
+                                                                         'detail/fc_dist.0.imp/98/distribution']],
+                                                "layer1": ['Multiline', ['detail/fc_dist.1.imp/0/distribution',
+                                                                         'detail/fc_dist.1.imp/20/distribution',
+                                                                         'detail/fc_dist.1.imp/40/distribution',
+                                                                         'detail/fc_dist.1.imp/60/distribution',
+                                                                         'detail/fc_dist.1.imp/80/distribution',
+                                                                         'detail/fc_dist.1.imp/82/distribution',
+                                                                         'detail/fc_dist.1.imp/84/distribution',
+                                                                         'detail/fc_dist.1.imp/86/distribution',
+                                                                         'detail/fc_dist.1.imp/88/distribution',
+                                                                         'detail/fc_dist.1.imp/90/distribution',
+                                                                         'detail/fc_dist.1.imp/92/distribution',
+                                                                         'detail/fc_dist.1.imp/94/distribution',
+                                                                         'detail/fc_dist.1.imp/96/distribution',
+                                                                         'detail/fc_dist.1.imp/98/distribution']],
+                                                "layer2": ['Multiline', ['detail/fc_dist.2.imp/0/distribution',
+                                                                         'detail/fc_dist.2.imp/20/distribution',
+                                                                         'detail/fc_dist.2.imp/40/distribution',
+                                                                         'detail/fc_dist.2.imp/60/distribution',
+                                                                         'detail/fc_dist.2.imp/80/distribution',
+                                                                         'detail/fc_dist.2.imp/82/distribution',
+                                                                         'detail/fc_dist.2.imp/84/distribution',
+                                                                         'detail/fc_dist.2.imp/86/distribution',
+                                                                         'detail/fc_dist.2.imp/88/distribution',
+                                                                         'detail/fc_dist.2.imp/90/distribution',
+                                                                         'detail/fc_dist.2.imp/92/distribution',
+                                                                         'detail/fc_dist.2.imp/94/distribution',
+                                                                         'detail/fc_dist.2.imp/96/distribution',
+                                                                         'detail/fc_dist.2.imp/98/distribution']]},
+                                      "r's": {"layer0": ['Multiline', ['detail/fc_dist.0.r/0/distribution',
+                                                                       'detail/fc_dist.0.r/10/distribution',
+                                                                       'detail/fc_dist.0.r/20/distribution',
+                                                                       'detail/fc_dist.0.r/30/distribution',
+                                                                       'detail/fc_dist.0.r/40/distribution',
+                                                                       'detail/fc_dist.0.r/50/distribution',
+                                                                       'detail/fc_dist.0.r/60/distribution',
+                                                                       'detail/fc_dist.0.r/70/distribution',
+                                                                       'detail/fc_dist.0.r/80/distribution',
+                                                                       'detail/fc_dist.0.r/90/distribution']],
+                                              "layer1": ['Multiline', ['detail/fc_dist.1.r/0/distribution',
+                                                                       'detail/fc_dist.1.r/10/distribution',
+                                                                       'detail/fc_dist.1.r/20/distribution',
+                                                                       'detail/fc_dist.1.r/30/distribution',
+                                                                       'detail/fc_dist.1.r/40/distribution',
+                                                                       'detail/fc_dist.1.r/50/distribution',
+                                                                       'detail/fc_dist.1.r/60/distribution',
+                                                                       'detail/fc_dist.1.r/70/distribution',
+                                                                       'detail/fc_dist.1.r/80/distribution',
+                                                                       'detail/fc_dist.1.r/90/distribution']],
+                                              "layer2": ['Multiline', ['detail/fc_dist.2.r/0/distribution',
+                                                                       'detail/fc_dist.2.r/10/distribution',
+                                                                       'detail/fc_dist.2.r/20/distribution',
+                                                                       'detail/fc_dist.2.r/30/distribution',
+                                                                       'detail/fc_dist.2.r/40/distribution',
+                                                                       'detail/fc_dist.2.r/50/distribution',
+                                                                       'detail/fc_dist.2.r/60/distribution',
+                                                                       'detail/fc_dist.2.r/70/distribution',
+                                                                       'detail/fc_dist.2.r/80/distribution',
+                                                                       'detail/fc_dist.2.r/90/distribution']]}})
+
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
     if father_handle is not None:
