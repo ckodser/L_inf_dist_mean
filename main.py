@@ -157,7 +157,7 @@ def train(net, up, down, loss_fun, epoch, train_loader, optimizer, schedule, log
 
 @torch.no_grad()
 def test(net, epoch, test_loader, logger, test_logger, gpu, parallel, print_freq, test_eps):
-    batch_time, accs, certified_accs = [AverageMeter() for _ in range(2)]
+    batch_time, accs, certified_accs = [AverageMeter() for _ in range(3)]
     start = time.time()
     epoch_start_time = start
     test_loader_len = len(test_loader)
@@ -187,7 +187,7 @@ def test(net, epoch, test_loader, logger, test_logger, gpu, parallel, print_freq
     if logger is not None:
         elapse = time.time() - epoch_start_time
         logger.print(
-            'Epoch %d:  ' % epoch + 'test acc ' + f'{acc:.4f}' + 'test cert acc' + f'{cert_acc:.4f}' + '  time ' + f'{elapse:.2f}')
+            'Epoch %d:  ' % epoch + 'test acc ' + f'{acc:.4f}' + '  test cert acc ' + f'{cert_acc:.4f}' + '  time ' + f'{elapse:.2f}')
     return acc
 
 
