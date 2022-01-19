@@ -21,7 +21,7 @@ class NormDistBase(nn.Module):
         self.p = p
         self.softMax = torch.nn.Softmax(dim=1)
 
-        self.r = nn.Parameter(torch.ones(out_features) * model_dict['initial r'],
+        self.r = nn.Parameter((torch.rand(out_features)-0.5)*2 * model_dict['initial r'],
                               requires_grad=model_dict['learnable r'])
         self.imp = nn.Parameter(torch.randn(out_features, in_features // groups) * std * 0.01, requires_grad=model_dict['learnable length'])
 

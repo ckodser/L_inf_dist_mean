@@ -65,6 +65,13 @@ parser.add_argument('--seed', default=2021, type=int)
 parser.add_argument('--visualize', action='store_true')
 
 
+def cal_acc_cert(outputs, targets, train_eps, test_eps):
+    outputs *= (2 * train_eps)
+    outputs = outputs.scatter(1, targets.view(-1, 1), 2*(train_eps-test_eps))
+    predicted = torch.max(outputs.data, 1)[1]
+    return (predicted == targets).float().mean().item()
+
+
 def cal_acc(outputs, targets):
     predicted = torch.max(outputs.data, 1)[1]
     return (predicted == targets).float().mean().item()
@@ -87,7 +94,7 @@ def eval(model):
 
 
 def train(net, up, down, loss_fun, epoch, train_loader, optimizer, schedule, logger, train_logger, gpu, parallel,
-          print_freq):
+          print_freq, test_eps):
     batch_time, losses, correct_accs, certified_accs = [AverageMeter() for _ in range(4)]
     start = time.time()
     epoch_start_time = start
@@ -109,7 +116,7 @@ def train(net, up, down, loss_fun, epoch, train_loader, optimizer, schedule, log
         with torch.no_grad():
             losses.update(loss.data.item(), targets.size(0))
             correct_accs.update(cal_acc(outputs.data, targets), targets.size(0))
-            certified_accs.update(cal_acc(worst_outputs.data, targets), targets.size(0))
+            certified_accs.update(cal_acc_cert(worst_outputs.data, targets, eps, test_eps), targets.size(0))
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -128,7 +135,7 @@ def train(net, up, down, loss_fun, epoch, train_loader, optimizer, schedule, log
                          'lr {lr:.4f}   p {p:.2f}   eps {eps:.4f}   mix {mix:.4f}   '
                          'Loss {loss.val:.4f} ({loss.avg:.4f})   '
                          'Acc {acc.val:.4f} ({acc.avg:.4f})   '
-                         'Certified (fake) {cert.val:.4f} ({cert.avg:.4f})'.format(
+                         'Certified (not fake) {cert.val:.4f} ({cert.avg:.4f})'.format(
                 epoch, batch_idx + 1, train_loader_len, batch_time=batch_time,
                 lr=lr, p=p, eps=eps, mix=mix, loss=losses, acc=correct_accs, cert=certified_accs))
         start = time.time()
@@ -295,7 +302,7 @@ def create_schedule(args, batch_per_epoch, model, optimizer, loss, eps_schedule=
 
     def schedule(epoch, minibatch):
         if decays is None:
-            ratio = cal_ratio(epoch, 0, epoch_tot, minibatch)
+            ratio = 0  # cal_ratio(epoch, 0, epoch_tot, minibatch)
             for param_group, lr in zip(optimizer.param_groups, lrs):
                 param_group['lr'] = 0.5 * lr * (1 + math.cos((ratio * math.pi)))
         else:
@@ -384,6 +391,15 @@ def get_model_detail(model, step):
                                   step)
 
 
+class normal_hinge():
+    def __init__(self, mix=0.25):
+        pass
+
+    def __call__(self, outputs, worst_outputs, targets):
+        res = worst_outputs.clamp(min=0)
+        return res.mean()
+
+
 def main_worker(gpu, model_dict, parallel, args, result_dir):
     if parallel:
         args.rank = args.rank + gpu
@@ -416,6 +432,8 @@ def main_worker(gpu, model_dict, parallel, args, result_dir):
     loss_name, params = parse_function_call(args.loss)
     if loss_name == 'cross_entropy':
         loss = cross_entropy
+    elif loss_name == 'hinge':
+        loss = normal_hinge()
     else:
         loss = globals()[loss_name](**params)
 
@@ -474,7 +492,7 @@ def main_worker(gpu, model_dict, parallel, args, result_dir):
             train_loader.sampler.set_epoch(epoch)
 
         train_loss, train_acc, train_cert = train(model, None, None, loss, epoch, train_loader, optimizer, schedule,
-                                                  logger, train_logger, gpu, parallel, args.print_freq)
+                                                  logger, train_logger, gpu, parallel, args.print_freq, args.eps_test)
 
         if epoch % 1 == 0 or epoch >= args.epochs[-1] - 5:
             test_acc = test(model, epoch, test_loader, logger, test_logger, gpu, parallel, args.print_freq)
@@ -523,7 +541,7 @@ def main(father_handle, **extra_argv):
     ###################################################
     ##############################################################################
     run_name = "exp4"
-    model_dict = {'learnable length': True, 'learnable r': True, 'initial r': 0}
+    model_dict = {'learnable length': True, 'learnable r': True, 'initial r': 2}
     ##############################################################################
     ####################################################
 
