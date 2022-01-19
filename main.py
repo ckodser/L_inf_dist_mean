@@ -67,7 +67,7 @@ parser.add_argument('--visualize', action='store_true')
 
 def cal_acc_cert(outputs, targets, train_eps, test_eps):
     outputs *= (2 * train_eps)
-    outputs = outputs.scatter(1, targets.view(-1, 1), 2*(train_eps-test_eps))
+    outputs = outputs.scatter(1, targets.view(-1, 1), 2 * (train_eps - test_eps))
     predicted = torch.max(outputs.data, 1)[1]
     return (predicted == targets).float().mean().item()
 
@@ -148,7 +148,7 @@ def train(net, up, down, loss_fun, epoch, train_loader, optimizer, schedule, log
         train_logger.log({'epoch': epoch, 'loss': loss, 'acc': acc, 'certified': cert})
     if logger is not None:
         eps, p, mix, lr = schedule(epoch, 0)
-        logger.print('Epoch {0}:  train loss {loss:.4f}   train acc {acc:.4f}   worst {cert:.4f}   '
+        logger.print('Epoch {0}:  train loss {loss:.4f}   train acc {acc:.4f}   worst(cert) {cert:.4f}   '
                      'lr {lr:.4f}   p {p:.2f}   eps {eps:.4f}   mix {mix:.4f}   time {time:.2f}'.format(
             epoch, loss=loss, acc=acc, cert=cert, lr=lr, p=p, eps=eps, mix=mix,
             time=time.time() - epoch_start_time))
@@ -156,8 +156,8 @@ def train(net, up, down, loss_fun, epoch, train_loader, optimizer, schedule, log
 
 
 @torch.no_grad()
-def test(net, epoch, test_loader, logger, test_logger, gpu, parallel, print_freq):
-    batch_time, accs = [AverageMeter() for _ in range(2)]
+def test(net, epoch, test_loader, logger, test_logger, gpu, parallel, print_freq, test_eps):
+    batch_time, accs, certified_accs = [AverageMeter() for _ in range(2)]
     start = time.time()
     epoch_start_time = start
     test_loader_len = len(test_loader)
@@ -166,24 +166,28 @@ def test(net, epoch, test_loader, logger, test_logger, gpu, parallel, print_freq
         for batch_idx, (inputs, targets) in enumerate(test_loader):
             inputs = inputs.cuda(gpu, non_blocking=True)
             targets = targets.cuda(gpu, non_blocking=True)
-            outputs = net(inputs)
+            outputs, worst_outputs = net(inputs, targets=targets, eps=test_eps, up=None, down=None)
             accs.update(cal_acc(outputs, targets), targets.size(0))
+            certified_accs.update(cal_acc(worst_outputs.data, targets), targets.size(0))
             batch_time.update(time.time() - start)
             start = time.time()
             if (batch_idx + 1) % print_freq == 0 and logger is not None:
                 logger.print('Test: [{0}/{1}]   '
                              'Time {batch_time.val:.3f} ({batch_time.avg:.3f})   '
-                             'Acc {acc.val:.4f} ({acc.avg:.4f})'.format(
-                    batch_idx + 1, test_loader_len, batch_time=batch_time, acc=accs))
+                             'Acc {acc.val:.4f} ({acc.avg:.4f})'
+                             'Certified (not fake) {cert.val:.4f} ({cert.avg:.4f})'.format(
+                    batch_idx + 1, test_loader_len, batch_time=batch_time, acc=accs, cert=certified_accs))
 
     acc = accs.avg
+    cert_acc = certified_accs.avg
     if parallel:
         acc = parallel_reduce(accs.avg)
     if test_logger is not None:
         test_logger.log({'epoch': epoch, 'acc': acc})
     if logger is not None:
         elapse = time.time() - epoch_start_time
-        logger.print('Epoch %d:  ' % epoch + 'test acc ' + f'{acc:.4f}' + '   time ' + f'{elapse:.2f}')
+        logger.print(
+            'Epoch %d:  ' % epoch + 'test acc ' + f'{acc:.4f}' + 'test cert acc' + f'{cert_acc:.4f}' + '  time ' + f'{elapse:.2f}')
     return acc
 
 
@@ -495,7 +499,8 @@ def main_worker(gpu, model_dict, parallel, args, result_dir):
                                                   logger, train_logger, gpu, parallel, args.print_freq, args.eps_test)
 
         if epoch % 1 == 0 or epoch >= args.epochs[-1] - 5:
-            test_acc = test(model, epoch, test_loader, logger, test_logger, gpu, parallel, args.print_freq)
+            test_acc = test(model, epoch, test_loader, logger, test_logger, gpu, parallel, args.print_freq,
+                            args.eps_test)
             if epoch % 8 == 7:
                 if logger is not None:
                     logger.print('Calculating metrics for L_infinity dist model on training set')
