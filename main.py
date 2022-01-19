@@ -473,7 +473,7 @@ def main_worker(gpu, model_dict, parallel, args, result_dir):
         if parallel:
             train_loader.sampler.set_epoch(epoch)
 
-        train_loss, train_acc, train_cert = train(model, up, down, loss, epoch, train_loader, optimizer, schedule,
+        train_loss, train_acc, train_cert = train(model, None, None, loss, epoch, train_loader, optimizer, schedule,
                                                   logger, train_logger, gpu, parallel, args.print_freq)
 
         if epoch % 1 == 0 or epoch >= args.epochs[-1] - 5:
@@ -481,12 +481,12 @@ def main_worker(gpu, model_dict, parallel, args, result_dir):
             if epoch % 8 == 7:
                 if logger is not None:
                     logger.print('Calculating metrics for L_infinity dist model on training set')
-                train_inf_acc, train_inf_cert = certified_test(model, args.eps_test, up, down, epoch, train_loader,
+                train_inf_acc, train_inf_cert = certified_test(model, args.eps_test, None, None, epoch, train_loader,
                                                                logger, train_inf_logger, gpu, parallel)
 
             if logger is not None:
                 logger.print('Calculating metrics for L_infinity dist model on test set')
-            test_inf_acc, test_inf_cert = certified_test(model, args.eps_test, up, down, epoch, test_loader,
+            test_inf_acc, test_inf_cert = certified_test(model, args.eps_test, None, None, epoch, test_loader,
                                                          logger, test_inf_logger, gpu, parallel)
             if writer is not None:
                 writer.add_scalar('test acc', test_acc, epoch)
@@ -522,8 +522,8 @@ def main_worker(gpu, model_dict, parallel, args, result_dir):
 def main(father_handle, **extra_argv):
     ###################################################
     ##############################################################################
-    run_name = "exp2"
-    model_dict = {'learnable length': False, 'learnable r': True, 'initial r': 1}
+    run_name = "exp4"
+    model_dict = {'learnable length': True, 'learnable r': True, 'initial r': 0}
     ##############################################################################
     ####################################################
 
@@ -543,7 +543,7 @@ def main(father_handle, **extra_argv):
 
     result_dir += "lenght_" + str(model_dict['learnable length']) + "_r" + str(model_dict['learnable r']) + "_" + str(
         model_dict['initial r']) + run_name
-
+    print(result_dir)
     global writer
     writer = SummaryWriter(log_dir=result_dir, flush_secs=30)
 
