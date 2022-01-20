@@ -80,7 +80,7 @@ def get_dataset(dataset, dataset_name, datadir, augmentation=True):
     return train_dataset, test_dataset
 
 
-def load_data(dataset, datadir, batch_size, parallel, augmentation=True, workers=4):
+def load_data(dataset, datadir, batch_size, parallel, augmentation=True, workers=2):
     train_dataset, test_dataset = get_dataset(dataset, dataset, datadir, augmentation=augmentation)
     train_sampler = DistributedSampler(train_dataset, shuffle=True, seed=torch.seed()) if parallel else None
     trainloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=not parallel,
