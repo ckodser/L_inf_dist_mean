@@ -59,6 +59,8 @@ parser.add_argument('--world-size', default=1)
 parser.add_argument('--rank', default=0)
 
 parser.add_argument('-p', '--print-freq', default=200, type=int, metavar='N', help='print frequency')
+parser.add_argument('--innerb', default=None, type=int, help='inner batch size used by model')
+parser.add_argument('--saving-epoch', default=None, type=int, help='every epochs save state of the model')
 parser.add_argument('--result-dir', default='result', type=str)
 parser.add_argument('--filter-name', default='', type=str)
 parser.add_argument('--seed', default=2021, type=int)
@@ -94,7 +96,7 @@ def eval(model):
 
 
 def train(net, up, down, loss_fun, epoch, train_loader, optimizer, schedule, logger, train_logger, gpu, parallel,
-          print_freq, test_eps):
+          print_freq, test_eps, inner_batch_size):
     batch_time, losses, correct_accs, certified_accs = [AverageMeter() for _ in range(4)]
     start = time.time()
     epoch_start_time = start
@@ -111,18 +113,24 @@ def train(net, up, down, loss_fun, epoch, train_loader, optimizer, schedule, log
         print(round(torch.max(inputs).item(), 2), round(torch.min(inputs).item(), 2), end=" ")
         inputs = inputs.cuda(gpu, non_blocking=True)
         targets = targets.cuda(gpu, non_blocking=True)
-        outputs, worst_outputs = net(inputs, targets=targets, eps=eps, up=up, down=down)
-        loss = loss_fun(outputs, worst_outputs, targets)
-        with torch.no_grad():
-            losses.update(loss.data.item(), targets.size(0))
-            correct_accs.update(cal_acc(outputs.data, targets), targets.size(0))
-            certified_accs.update(cal_acc_cert(worst_outputs.data, targets, eps, test_eps), targets.size(0))
         optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+        iteration_num = inputs.shape[0] // inner_batch_size
+        for i in range(0, iteration_num):
+            l = i * inner_batch_size
+            r = l + inner_batch_size
+            outputs, worst_outputs = net(inputs[l:r], targets=targets[l:r], eps=eps, up=up, down=down)
+            loss = loss_fun(outputs, worst_outputs, targets[l:r])/iteration_num
+            with torch.no_grad():
+                losses.update(loss.data.item()*iteration_num, targets[l:r].size(0))
+                correct_accs.update(cal_acc(outputs.data, targets[l:r]), targets[l:r].size(0))
+                certified_accs.update(cal_acc_cert(worst_outputs.data, targets[l:r], eps, test_eps),
+                                      targets[l:r].size(0))
 
-        gc.collect()
-        torch.cuda.empty_cache()
+            loss.backward()
+            gc.collect()
+            torch.cuda.empty_cache()
+
+        optimizer.step()
 
         batch_time.update(time.time() - start)
         if (batch_idx + 1) % print_freq == 0 and logger is not None:
@@ -388,6 +396,9 @@ def get_model_detail(model, step):
     for name, p in model.named_parameters():
         if name.endswith(".imp"):
             p = torch.nn.Softmax(dim=1)(p)
+            if p.shape[1] > 20000 // p.shape[0]:
+                p = p[:20000 // p.shape[0]]
+
             for i in range(5):
                 writer.add_scalar(f"detail/{name}/{20 * i}/distribution", torch.quantile(p, 0.2 * i).item(), step)
             for i in range(10):
@@ -496,7 +507,14 @@ def main_worker(gpu, model_dict, parallel, args, result_dir):
             train_loader.sampler.set_epoch(epoch)
 
         train_loss, train_acc, train_cert = train(model, None, None, loss, epoch, train_loader, optimizer, schedule,
-                                                  logger, train_logger, gpu, parallel, args.print_freq, args.eps_test)
+                                                  logger, train_logger, gpu, parallel, args.print_freq, args.eps_test,
+                                                  args.innerb)
+
+        if (epoch + 1) % args.saveing_epoch == 0:
+            torch.save({
+                'state_dict': model.state_dict(),
+                'optimizer': optimizer.state_dict(),
+            }, os.path.join(result_dir, f"model{epoch}.pth"))
 
         if epoch % 1 == 0 or epoch >= args.epochs[-1] - 5:
             test_acc = test(model, epoch, test_loader, logger, test_logger, gpu, parallel, args.print_freq,
