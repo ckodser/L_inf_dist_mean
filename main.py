@@ -510,7 +510,7 @@ def main_worker(gpu, model_dict, parallel, args, result_dir):
                                                   logger, train_logger, gpu, parallel, args.print_freq, args.eps_test,
                                                   args.innerb)
 
-        if (epoch + 1) % args.saveing_epoch == 0:
+        if (epoch + 1) % args.saving_epoch == 0:
             torch.save({
                 'state_dict': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
