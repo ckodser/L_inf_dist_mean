@@ -102,8 +102,9 @@ class BoundFinalLinear(nn.Linear):
 
 
 class MeanShift(nn.Module):
-    def __init__(self, out_channels, momentum=0.1, affine=True):
+    def __init__(self, out_channels, momentum=0.01, affine=True):
         super(MeanShift, self).__init__()
+        print(momentum)
         self.out_channels = out_channels
         self.momentum = momentum
         self.affine = affine
