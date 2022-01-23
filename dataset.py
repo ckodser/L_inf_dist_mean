@@ -86,6 +86,6 @@ def load_data(dataset, datadir, batch_size, parallel, augmentation=True, workers
     trainloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=not parallel,
                              num_workers=workers, sampler=train_sampler, pin_memory=True)
     test_sampler = DistributedSampler(test_dataset, shuffle=False) if parallel else None
-    testloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
+    testloader = DataLoader(test_dataset, batch_size=3, shuffle=False,
                             num_workers=workers, sampler=test_sampler, pin_memory=True)
     return trainloader, testloader

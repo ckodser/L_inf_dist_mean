@@ -519,7 +519,7 @@ def main_worker(gpu, model_dict, parallel, args, result_dir):
         if epoch % 1 == 0 or epoch >= args.epochs[-1] - 5:
             test_acc = test(model, epoch, test_loader, logger, test_logger, gpu, parallel, args.print_freq,
                             args.eps_test)
-            if epoch % 8 == 7:
+            if epoch % 8 == 9:
                 if logger is not None:
                     logger.print('Calculating metrics for L_infinity dist model on training set')
                 train_inf_acc, train_inf_cert = certified_test(model, args.eps_test, None, None, epoch, train_loader,
