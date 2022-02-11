@@ -1,5 +1,6 @@
 import random
 
+import numpy as np
 import torch
 import math
 import core.cudaPy.cudaEqualPyFunction
@@ -156,6 +157,8 @@ def rThDist(x, weight, r, p, length, groups=1, use_custom_cuda_func=False, tag=N
     if use_custom_cuda_func:
         raise NotImplemented
     else:
+        # length2 = length#torch.nn.ReLU()(length)
+        length = torch.nn.Softmax(dim=1)(length)
         r = torch.sigmoid(r)
         # r = torch.ones_like(r)  # 200 -> 60%
         # length=torch.ones_like(length)/x.size(1)
@@ -166,23 +169,31 @@ def rThDist(x, weight, r, p, length, groups=1, use_custom_cuda_func=False, tag=N
         output, ind = torch.sort(output, dim=3)
         length = length.view(1, 1, length.shape[0], length.shape[1], 1).repeat(output.shape[0], 1, 1, 1, 1)
         sorted_length = torch.gather(input=length, index=ind, dim=3)
-        end_point = torch.cumsum(sorted_length, dim=3)
 
+        # length2 = length2.view(1, 1, length2.shape[0], length2.shape[1], 1).repeat(output.shape[0], 1, 1, 1, 1)
+        # sorted_length2 = torch.gather(input=length2, index=ind, dim=3)
+
+        rel_end_point = torch.cumsum(sorted_length, dim=3) - r.view(1, 1, -1, 1, 1)
+        rel_starting_point = rel_end_point - sorted_length
+        dist = torch.minimum(torch.abs(rel_end_point), torch.abs(rel_starting_point))
         if p != float('inf'):
-            a = p / 50 * end_point.size(3)
-            norm = -torch.abs(end_point - r.view(1, 1, -1, 1, 1)) * a
-            norm -= torch.max(norm, dim=3, keepdim=True).values
+            a = p / 50 * rel_end_point.size(3)
+            norm = -dist * a
+            mx = (torch.max(norm, dim=3, keepdim=True).values).detach()
+            norm -= mx
             norm = sorted_length * torch.exp(norm)
-            sum = torch.sum(norm, dim=3, keepdim=True)
+            # sum2 = (2 * (np.exp(-a / 2) - 1) / (-a)) #* torch.exp(-mx)
+            sum = torch.sum(torch.abs(norm), dim=3, keepdim=True)
+            # print("old",round(torch.mean(sum).item(),3),round(sum2,3), round(a, 3))
             output = torch.sum(output * norm / sum, dim=3)
         else:
-            select = torch.min(torch.abs(end_point - r.view(1, 1, -1, 1, 1)), dim=3, keepdim=True).values
-            norm = (torch.abs(end_point - r.view(1, 1, -1, 1, 1)) == select)
+            select = torch.min(dist, dim=3, keepdim=True).values
+            norm = (torch.abs(dist) == select)
             output = output * norm
             output = torch.sum(output, dim=3)
 
         output = output.view(output.size(0), -1, output.size(-1))
-        y = torch.abs(output)
+        y = output#torch.abs(output)
     return y
 
 

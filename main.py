@@ -563,8 +563,8 @@ def main_worker(gpu, model_dict, parallel, args, result_dir):
 def main(father_handle, **extra_argv):
     ###################################################
     ##############################################################################
-    run_name = "exp4"
-    model_dict = {'learnable length': True, 'learnable r': True, 'initial r': 2}
+    run_name = "exp12"
+    model_dict = {'learnable length': True, 'learnable r': True, 'initial r': 4}
     ##############################################################################
     ####################################################
 

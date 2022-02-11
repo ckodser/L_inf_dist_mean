@@ -112,7 +112,7 @@ class AverageMeter(object):
         self.avg = 0
         self.sum = 0
         self.count = 0
-        self.queue = Queue(maxsize=400)
+        self.queue = Queue(maxsize=100)
         self.queuesum = 0
         self.queueavg = 0
 

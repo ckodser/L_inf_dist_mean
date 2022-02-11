@@ -19,7 +19,6 @@ class NormDistBase(nn.Module):
         self.weight = nn.Parameter(torch.randn(out_features, in_features // groups) * std, requires_grad=True)
         self.groups = groups
         self.p = p
-        self.softMax = torch.nn.Softmax(dim=1)
 
         self.r = nn.Parameter((torch.rand(out_features)-0.5)*2 * model_dict['initial r'],
                               requires_grad=model_dict['learnable r'])
@@ -36,7 +35,7 @@ class NormDistBase(nn.Module):
     # x, lower and upper should be 3d tensors with shape (B, C, H*W)
     def forward(self, x=None, lower=None, upper=None):
         if x is not None:
-            x = norm_dist(x, self.weight, self.r, self.p, self.softMax(self.imp), self.groups, tag=self.tag)
+            x = norm_dist(x, self.weight, self.r, self.p, self.imp, self.groups, tag=self.tag)
         if lower is not None and upper is not None:
             raise NotImplemented
             assert math.isinf(self.p)

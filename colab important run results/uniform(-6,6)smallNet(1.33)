@@ -1,0 +1,166 @@
+Thu Jan 20 05:56:57 2022
++-----------------------------------------------------------------------------+
+| NVIDIA-SMI 495.46       Driver Version: 460.32.03    CUDA Version: 11.2     |
+|-------------------------------+----------------------+----------------------+
+| GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
+|                               |                      |               MIG M. |
+|===============================+======================+======================|
+|   0  Tesla P100-PCIE...  Off  | 00000000:00:04.0 Off |                    0 |
+| N/A   67C    P0    36W / 250W |      0MiB / 16280MiB |      0%      Default |
+|                               |                      |                  N/A |
++-------------------------------+----------------------+----------------------+
+
++-----------------------------------------------------------------------------+
+| Processes:                                                                  |
+|  GPU   GI   CI        PID   Type   Process name                  GPU Memory |
+|        ID   ID                                                   Usage      |
+|=============================================================================|
+|  No running processes found                                                 |
++-----------------------------------------------------------------------------+
+result/CIFAR10_2lenght_True_rTrue_6exp4
+/usr/local/lib/python3.7/dist-packages/torch/utils/data/dataloader.py:481: UserWarning: This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  cpuset_checked))
+manual_result_dir = result/CIFAR10_2
+dataset = MNIST
+model = MLPModel(depth=3,width=512,identity_val=10.0,scalar=True)
+loss = mixture(lam0=0.05,lam_end=0.0002)
+p_start = 8.0
+p_end = 8.0
+eps_train = 0.45
+eps_test = 0.3
+eps_smooth = 0
+epochs = 0,0,2,15,17
+decays = None
+batch_size = 128
+lr = 0.03
+scalar_lr = 0.06
+beta1 = 0.9
+beta2 = 0.99
+epsilon = 1e-10
+start_epoch = 0
+checkpoint = None
+gpu = 0
+dist_url = tcp://localhost:23456
+world_size = 1
+rank = 0
+print_freq = 200
+result_dir = result
+filter_name =
+seed = 2022
+visualize = True
+Compose(
+    RandomCrop(size=(28, 28), padding=1)
+    ToTensor()
+    Normalize(mean=[0.1307], std=[0.3081])
+)
+MLPModel(
+  (fc_dist): BoundSequential(
+    (0): NormDist(
+      in_features=784, out_features=512, bias=False
+      (softMax): Softmax(dim=1)
+      (mean_shift): MeanShift(512, affine=False)
+    )
+    (1): NormDist(
+      in_features=512, out_features=512, bias=False
+      (softMax): Softmax(dim=1)
+      (mean_shift): MeanShift(512, affine=False)
+    )
+    (2): NormDist(
+      in_features=512, out_features=10, bias=True
+      (softMax): Softmax(dim=1)
+    )
+  )
+)
+number of params:  1338389
+batch per epoch: 469
+epoch = 0
+ step=199 p=8.0  2.82 -0.42 Epoch: [0][200/469]   Time 0.317 (0.316)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0500   Loss 0.6832 (0.8482)   Acc 0.8438 (0.6811)   Certified (not fake) 0.1641 (0.0645)
+ step=399 p=8.0  2.82 -0.42 Epoch: [0][400/469]   Time 0.321 (0.313)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0500   Loss 0.6000 (0.7446)   Acc 0.8672 (0.7722)   Certified (not fake) 0.2734 (0.1300)
+ step=468 p=8.0  2.82 -0.42 Epoch 0:  train loss 0.7184   train acc 0.7849   worst(cert) 0.1540   lr 0.0300   p 8.00   eps 1.4606   mix 0.0500   time 146.97
+Epoch 0:  test acc 0.8953  test cert acc  0.3862  time 7.59
+Calculating metrics for L_infinity dist model on test set
+Epoch 0:  clean acc 0.8071   certified acc 0.3566
+epoch = 1
+ step=199 p=8.0  2.82 -0.42 Epoch: [1][200/469]   Time 0.302 (0.308)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0500   Loss 0.4424 (0.4806)   Acc 0.8281 (0.8626)   Certified (not fake) 0.5078 (0.4277)
+ step=399 p=8.0  2.82 -0.42 Epoch: [1][400/469]   Time 0.308 (0.307)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0500   Loss 0.3481 (0.4388)   Acc 0.8906 (0.8606)   Certified (not fake) 0.6328 (0.5004)
+ step=468 p=8.0  2.82 -0.42 Epoch 1:  train loss 0.4305   train acc 0.8595   worst(cert) 0.5159   lr 0.0300   p 8.00   eps 1.4606   mix 0.0500   time 144.14
+Epoch 1:  test acc 0.9016  test cert acc  0.7137  time 7.61
+Calculating metrics for L_infinity dist model on test set
+Epoch 1:  clean acc 0.8882   certified acc 0.6788
+epoch = 2
+ step=199 p=8.0  2.82 -0.42 Epoch: [2][200/469]   Time 0.316 (0.309)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0418   Loss 0.3458 (0.3664)   Acc 0.8516 (0.8512)   Certified (not fake) 0.6719 (0.6279)
+ step=399 p=8.0  2.82 -0.42 Epoch: [2][400/469]   Time 0.297 (0.307)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0348   Loss 0.3213 (0.3589)   Acc 0.8672 (0.8509)   Certified (not fake) 0.6562 (0.6349)
+ step=468 p=8.0  2.82 -0.42 Epoch 2:  train loss 0.3571   train acc 0.8510   worst(cert) 0.6353   lr 0.0300   p 8.00   eps 1.4606   mix 0.0500   time 143.94
+Epoch 2:  test acc 0.8944  test cert acc  0.7313  time 7.66
+Calculating metrics for L_infinity dist model on test set
+Epoch 2:  clean acc 0.8507   certified acc 0.5655
+epoch = 3
+ step=199 p=8.0  2.82 -0.42 Epoch: [3][200/469]   Time 0.319 (0.308)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0273   Loss 0.3719 (0.3432)   Acc 0.8125 (0.8497)   Certified (not fake) 0.6328 (0.6463)
+ step=399 p=8.0  2.82 -0.42 Epoch: [3][400/469]   Time 0.302 (0.307)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0228   Loss 0.2542 (0.3406)   Acc 0.8828 (0.8492)   Certified (not fake) 0.7656 (0.6485)
+ step=468 p=8.0  2.82 -0.42 Epoch 3:  train loss 0.3403   train acc 0.8483   worst(cert) 0.6492   lr 0.0300   p 8.00   eps 1.4606   mix 0.0327   time 144.55
+Epoch 3:  test acc 0.8911  test cert acc  0.7403  time 7.67
+Calculating metrics for L_infinity dist model on test set
+Epoch 3:  clean acc 0.8047   certified acc 0.5506
+epoch = 4
+ step=199 p=8.0  2.82 -0.42 Epoch: [4][200/469]   Time 0.301 (0.308)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0179   Loss 0.3445 (0.3321)   Acc 0.8359 (0.8467)   Certified (not fake) 0.6328 (0.6528)
+ step=399 p=8.0  2.82 -0.42 Epoch: [4][400/469]   Time 0.301 (0.306)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0149   Loss 0.3363 (0.3281)   Acc 0.8047 (0.8459)   Certified (not fake) 0.6562 (0.6569)
+ step=468 p=8.0  2.82 -0.42 Epoch 4:  train loss 0.3281   train acc 0.8449   worst(cert) 0.6575   lr 0.0300   p 8.00   eps 1.4606   mix 0.0214   time 143.61
+Epoch 4:  test acc 0.8897  test cert acc  0.7320  time 7.65
+Calculating metrics for L_infinity dist model on test set
+Epoch 4:  clean acc 0.7511   certified acc 0.4977
+epoch = 5
+ step=199 p=8.0  2.82 -0.42 Epoch: [5][200/469]   Time 0.302 (0.307)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0117   Loss 0.3734 (0.3227)   Acc 0.7969 (0.8444)   Certified (not fake) 0.6328 (0.6633)
+ step=399 p=8.0  2.82 -0.42 Epoch: [5][400/469]   Time 0.304 (0.306)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0097   Loss 0.3121 (0.3263)   Acc 0.8516 (0.8394)   Certified (not fake) 0.6484 (0.6591)
+ step=468 p=8.0  2.82 -0.42 Epoch 5:  train loss 0.3256   train acc 0.8400   worst(cert) 0.6602   lr 0.0300   p 8.00   eps 1.4606   mix 0.0140   time 143.57
+Epoch 5:  test acc 0.8838  test cert acc  0.7352  time 7.64
+Calculating metrics for L_infinity dist model on test set
+Epoch 5:  clean acc 0.6809   certified acc 0.5254
+epoch = 6
+ step=199 p=8.0  2.82 -0.42 Epoch: [6][200/469]   Time 0.298 (0.308)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0076   Loss 0.3344 (0.3280)   Acc 0.8438 (0.8333)   Certified (not fake) 0.6406 (0.6577)
+ step=399 p=8.0  2.82 -0.42 Epoch: [6][400/469]   Time 0.298 (0.306)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0064   Loss 0.3318 (0.3258)   Acc 0.8281 (0.8337)   Certified (not fake) 0.6719 (0.6581)
+ step=468 p=8.0  2.82 -0.42 Epoch 6:  train loss 0.3257   train acc 0.8331   worst(cert) 0.6579   lr 0.0300   p 8.00   eps 1.4606   mix 0.0091   time 143.61
+Epoch 6:  test acc 0.8790  test cert acc  0.7372  time 7.66
+Calculating metrics for L_infinity dist model on test set
+Epoch 6:  clean acc 0.5893   certified acc 0.3834
+epoch = 7
+ step=199 p=8.0  2.82 -0.42 Epoch: [7][200/469]   Time 0.301 (0.307)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0050   Loss 0.3124 (0.3219)   Acc 0.8438 (0.8323)   Certified (not fake) 0.6875 (0.6628)
+ step=399 p=8.0  2.82 -0.42 Epoch: [7][400/469]   Time 0.301 (0.306)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0042   Loss 0.2140 (0.3207)   Acc 0.9141 (0.8345)   Certified (not fake) 0.7734 (0.6626)
+ step=468 p=8.0  2.82 -0.42 Epoch 7:  train loss 0.3206   train acc 0.8349   worst(cert) 0.6625   lr 0.0300   p 8.00   eps 1.4606   mix 0.0060   time 143.64
+Epoch 7:  test acc 0.8807  test cert acc  0.7347  time 7.66
+Calculating metrics for L_infinity dist model on training set
+Epoch 7:  clean acc 0.5683   certified acc 0.2550
+Calculating metrics for L_infinity dist model on test set
+Epoch 7:  clean acc 0.6056   certified acc 0.2898
+epoch = 8
+ step=199 p=8.0  2.82 -0.42 Epoch: [8][200/469]   Time 0.308 (0.313)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0033   Loss 0.3784 (0.3231)   Acc 0.7656 (0.8326)   Certified (not fake) 0.5938 (0.6568)
+ step=399 p=8.0  2.82 -0.42 Epoch: [8][400/469]   Time 0.302 (0.308)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0027   Loss 0.2736 (0.3301)   Acc 0.8359 (0.8237)   Certified (not fake) 0.7109 (0.6506)
+ step=468 p=8.0  2.82 -0.42 Epoch 8:  train loss 0.3308   train acc 0.8230   worst(cert) 0.6504   lr 0.0300   p 8.00   eps 1.4606   mix 0.0039   time 144.10
+Epoch 8:  test acc 0.8697  test cert acc  0.7340  time 7.63
+Calculating metrics for L_infinity dist model on test set
+Epoch 8:  clean acc 0.4499   certified acc 0.3262
+epoch = 9
+ step=199 p=8.0  2.82 -0.42 Epoch: [9][200/469]   Time 0.304 (0.307)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0021   Loss 0.3653 (0.3302)   Acc 0.7969 (0.8187)   Certified (not fake) 0.6016 (0.6520)
+ step=399 p=8.0  2.82 -0.42 Epoch: [9][400/469]   Time 0.311 (0.306)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0018   Loss 0.3314 (0.3280)   Acc 0.8203 (0.8182)   Certified (not fake) 0.6328 (0.6550)
+ step=468 p=8.0  2.82 -0.42 Epoch 9:  train loss 0.3277   train acc 0.8184   worst(cert) 0.6557   lr 0.0300   p 8.00   eps 1.4606   mix 0.0026   time 143.24
+Epoch 9:  test acc 0.8692  test cert acc  0.7389  time 7.62
+Calculating metrics for L_infinity dist model on test set
+Epoch 9:  clean acc 0.4989   certified acc 0.3503
+epoch = 10
+ step=199 p=8.0  2.82 -0.42 Epoch: [10][200/469]   Time 0.309 (0.306)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0014   Loss 0.3095 (0.3235)   Acc 0.8281 (0.8170)   Certified (not fake) 0.6562 (0.6599)
+ step=399 p=8.0  2.82 -0.42 Epoch: [10][400/469]   Time 0.300 (0.305)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0012   Loss 0.3738 (0.3237)   Acc 0.7500 (0.8138)   Certified (not fake) 0.6328 (0.6602)
+ step=468 p=8.0  2.82 -0.42 Epoch 10:  train loss 0.3240   train acc 0.8134   worst(cert) 0.6603   lr 0.0300   p 8.00   eps 1.4606   mix 0.0017   time 143.05
+Epoch 10:  test acc 0.8663  test cert acc  0.7440  time 7.61
+Calculating metrics for L_infinity dist model on test set
+Epoch 10:  clean acc 0.3569   certified acc 0.2019
+epoch = 11
+ step=199 p=8.0  2.82 -0.42 Epoch: [11][200/469]   Time 0.303 (0.307)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0009   Loss 0.3833 (0.3209)   Acc 0.7422 (0.8108)   Certified (not fake) 0.5938 (0.6613)
+ step=399 p=8.0  2.82 -0.42 Epoch: [11][400/469]   Time 0.309 (0.306)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0008   Loss 0.3059 (0.3222)   Acc 0.8125 (0.8087)   Certified (not fake) 0.6719 (0.6622)
+ step=468 p=8.0  2.82 -0.42 Epoch 11:  train loss 0.3222   train acc 0.8084   worst(cert) 0.6621   lr 0.0300   p 8.00   eps 1.4606   mix 0.0011   time 143.38
+Epoch 11:  test acc 0.8625  test cert acc  0.7477  time 7.58
+Calculating metrics for L_infinity dist model on test set
+Epoch 11:  clean acc 0.4105   certified acc 0.2715
+epoch = 12
+ step=199 p=8.0  2.82 -0.42 Epoch: [12][200/469]   Time 0.301 (0.307)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0006   Loss 0.3213 (0.3200)   Acc 0.8047 (0.8057)   Certified (not fake) 0.6641 (0.6661)
+ step=399 p=8.0  2.82 -0.42 Epoch: [12][400/469]   Time 0.297 (0.305)   lr 0.0300   p 8.00   eps 1.4606   mix 0.0005   Loss 0.3212 (0.3218)   Acc 0.7969 (0.8062)   Certified (not fake) 0.6562 (0.6637)
+ step=415 p=8.0  2.82 -0.42
